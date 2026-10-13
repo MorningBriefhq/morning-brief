@@ -1,0 +1,36 @@
+# Morning Briefing — Cloudflare Pages project config.
+#
+# First-time setup:
+#   1. wrangler d1 create morning-briefing
+#      -> paste the returned database_id below (replacing the placeholder).
+#   2. wrangler d1 execute morning-briefing --file=schema.sql
+#      (add --remote once the database exists remotely)
+#   3. wrangler pages secret put SESSION_SECRET   # REQUIRED (see below)
+#   4. wrangler pages deploy .                   # from the project root
+#
+# Secrets (never commit values here):
+#   SESSION_SECRET  — REQUIRED. Random 32+ byte hex string used to HMAC-sign
+#                     the mb_session cookie. Generate: openssl rand -hex 32
+#                     Without it, /api/auth/verify returns 500 {error:"server_misconfigured"}.
+#   RESEND_API_KEY  — OPTIONAL. When set, magic-link emails are sent via Resend.
+#                     When unset, links are only logged server-side (log-only mode).
+#                     See SEND_SETUP.md.
+
+name = "morning-briefing"
+compatibility_date = "2026-10-11"
+
+[vars]
+# From-address for magic-link emails (only used when RESEND_API_KEY is set).
+BRIEFING_FROM = "Morning Briefing <briefing@morningbrief.link>"
+# Set to "true" in preview/dev ONLY to include the magic link in the
+# request-link JSON response as `debug_link`. NEVER enable in production.
+# MAGIC_LINK_DEBUG = "true"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "morning-briefing"
+database_id = "11c2b098-b593-457d-ba82-dbed46f60590"
+
+# [env.production] inherits everything above; no overrides needed for the MVP.
+# NOTE: wrangler pages secret put applies per project (all environments).
+# For a separate preview D1 database, add an [[env.preview.d1_databases]] block.

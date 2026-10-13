@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/x-icon" href="/assets/img/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+    <link rel="apple-touch-icon" href="/assets/img/favicon-180.png">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Morning Brief">
+    <meta property="og:title" content="Morning Brief — The market news that matters, before the open.">
+    <meta property="og:description" content="A sharp, free daily market briefing. Indices, yields, commodities, earnings — no filler.">
+    <meta property="og:image" content="https://morningbrief.link/assets/img/og-image.jpg">
+    <meta property="og:image:width" content="2192">
+    <meta property="og:image:height" content="1152">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Morning Brief — The market news that matters, before the open.">
+    <meta name="twitter:description" content="A sharp, free daily market briefing. Indices, yields, commodities, earnings — no filler.">
+    <meta name="twitter:image" content="https://morningbrief.link/assets/img/og-image.jpg">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Earnings This Week — Morning Brief</title>
+  <meta name="description" content="S&P 100 earnings calendar for the week ahead, with links to investor relations.">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("mb_theme");
+        if (t !== "light" && t !== "dark") {
+          t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) { document.documentElement.setAttribute("data-theme", "light"); }
+    })();
+  </script>
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <style>
+    .earn-date-row td { padding: 1.25rem 0 0.25rem; border: none; }
+    .earn-date-row:first-child td { padding-top: 0; }
+    .earn-date-row h3 { font-size: 0.85rem; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin: 0; font-weight: 600; }
+    .earn-table { width: 100%; border-collapse: collapse; }
+    .earn-table td { padding: 0.7rem 0.5rem; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+    .earn-table tr:last-child td { border-bottom: none; }
+    .earn-ticker { font-weight: 700; font-size: 0.95rem; }
+    .earn-ticker a { color: var(--navy); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; font-weight: 700; }
+    .earn-ticker a:hover { text-decoration-thickness: 2px; }
+    .earn-ticker a::after { content: " ↗"; font-size: 0.8em; }
+    .earn-company { font-size: 0.85rem; color: var(--muted); }
+    .earn-time { font-size: 0.8rem; color: var(--muted); white-space: nowrap; text-align: right; }
+    .earn-est { font-size: 0.85rem; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .earn-qtr { font-size: 0.85rem; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }
+    .earn-qtr.up { color: #1a7a3a; }
+    .earn-qtr.down { color: #b3261e; }
+    [data-theme="dark"] .earn-qtr.up { color: #4caf6d; }
+    [data-theme="dark"] .earn-qtr.down { color: #e57373; }
+    .earn-foot { font-size: 0.78rem; color: var(--muted); margin-top: 1.5rem; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="wordmark" href="/"><span class="wordmark-gold">&#9670;</span>Morning Brief</a>
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="topbar-nav" id="topbar-nav">
+        <a href="/" class="nav-cta">Home</a>
+        <a href="/markets.html" class="nav-cta">Markets</a>
+        <a href="/earnings.html" class="nav-cta">Earnings</a>
+        <a href="/archive.html" class="nav-cta">Archive</a>
+        <a href="/profile.html" class="nav-cta">Profile</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
+      </nav>
+    </div>
+  </header>
+  <div class="nav-scrim" id="nav-scrim"></div>
+
+  <main>
+    <section class="section" style="padding-top: 1.5rem;">
+      <div class="wrap" style="max-width: 38rem;">
+        <p class="kicker">Earnings</p>
+        <h2>This week</h2>
+        <p class="section-lede" id="earn-range">Loading&hellip;</p>
+        <div id="earn-list"></div>
+        <p class="earn-foot"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <a class="wordmark" href="/"><span class="wordmark-gold">&#9670;</span>Morning Brief</a>
+      <p class="disclaimer" style="margin-top:1.25em;">
+        For informational purposes only. Not investment advice.
+      </p>
+      <small>&copy; 2026 Morning Brief. All rights reserved.</small>
+    </div>
+  </footer>
+
+  <script src="/assets/js/app.js"></script>
+  <script>
+    (function () {
+      "use strict";
+      MB.theme.initToggle(document.getElementById("theme-toggle"));
+
+      function fmtDate(iso) {
+        var d = new Date(iso + "T12:00:00");
+        return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+      }
+      function fmtEst(v, prefix) {
+        if (v == null) return "—";
+        if (Math.abs(v) >= 1e9) return prefix + (v / 1e9).toFixed(1) + "B";
+        if (Math.abs(v) >= 1e6) return prefix + (v / 1e6).toFixed(0) + "M";
+        return prefix + v.toFixed(2);
+      }
+
+      fetch("/api/earnings")
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d || !d.earnings || !d.earnings.length) {
+            document.getElementById("earn-range").textContent = "No S&P 100 earnings scheduled this week.";
+            return;
+          }
+          document.getElementById("earn-range").textContent =
+            d.count + " S&P 100 " + (d.count === 1 ? "company" : "companies") + " reporting " +
+            fmtDate(d.from) + " – " + fmtDate(d.to) + ".";
+
+          // Group by date
+          var byDate = {};
+          d.earnings.forEach(function (e) {
+            if (!byDate[e.date]) byDate[e.date] = [];
+            byDate[e.date].push(e);
+          });
+
+          var html = '<table class="earn-table"><tbody>';
+          Object.keys(byDate).sort().forEach(function (date) {
+            html += '<tr class="earn-date-row"><td colspan="4"><h3>' + fmtDate(date) + "</h3></td></tr>";
+            byDate[date].forEach(function (e) {
+              var qtrHtml = "";
+              if (e.qtr_perf != null) {
+                var qcls = e.qtr_perf >= 0 ? "up" : "down";
+                var qsign = e.qtr_perf >= 0 ? "+" : "";
+                qtrHtml = '<div class="earn-qtr ' + qcls + '">' + qsign + e.qtr_perf.toFixed(1) + '%</div><div class="earn-company">3-mo</div>';
+              }
+              html += "<tr>" +
+                '<td><div class="earn-ticker"><a href="' + e.link + '" target="_blank" rel="noopener">' + e.ticker + "</a></div>" +
+                '<div class="earn-company">' + e.company + "</div></td>" +
+                '<td class="earn-est">' + qtrHtml + "</td>" +
+                '<td class="earn-est">' + fmtEst(e.eps_estimate, "$") + '<div class="earn-company">EPS est.</div></td>' +
+                '<td class="earn-time">' + e.time + "</td></tr>";
+            });
+          });
+          html += "</tbody></table>";
+          document.getElementById("earn-list").innerHTML = html;
+        })
+        .catch(function () {
+          document.getElementById("earn-range").textContent = "Could not load earnings data.";
+        });
+    })();
+  </script>
+</body>
+</html>

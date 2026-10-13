@@ -1,0 +1,498 @@
+// Morning Briefing — overnight pipeline worker (scheduled).
+//
+// Cron: hourly tick ("0 * * * *" — see wrangler.toml). The worker checks the
+// America/New_York hour and runs the stage whose ET window is open:
+//   4:xx ET -> ingest (overnight news) + summarize + market overview
+//   6:xx ET -> assemble + send (emails land ~7 AM ET)
+// ET-anchored windows keep the schedule correct across DST; Cloudflare cron
+// itself is UTC and DST-naive. Stages are idempotent via pipeline_runs, so
+// overlapping or retried ticks are safe.
+//
+// Providers are chosen from env:
+//   FINNHUB_API_KEY set    -> FinnhubNewsProvider, else MockNewsProvider
+//   ai binding present     -> WorkersAISummarizer (free tier, default),
+//                             else ANTHROPIC_API_KEY -> AnthropicSummarizer,
+//                             else MockSummarizer
+//   RESEND_API_KEY set     -> real Resend sends,    else log-only stub
+// Market overview is always the mock provider in this build (real feeds later).
+
+import sp500 from "../data/sp500.json";
+import { runDateET, etHour, dateLongET, addDaysET } from "./lib/time.js";
+import { FinnhubNewsProvider, MockNewsProvider } from "./lib/news.js";
+import { MultiSourceNewsProvider } from "./lib/news-multi.js";
+import { WorkersAISummarizer, AnthropicSummarizer, MockSummarizer } from "./lib/summarize.js";
+import { MockMarketProvider } from "./lib/market.js";
+import { FinnhubMarketProvider } from "./lib/market-finnhub.js";
+import { ResendSender } from "./lib/send.js";
+import { MOCK_ARTICLES, MOCK_MARKET } from "./lib/mock-data.js";
+import { signToken } from "./lib/sign.js";
+import { renderTemplate } from "./lib/render.js";
+import {
+  getTargetTickers,
+  runIngest,
+  runIngestFull,
+  runSummarize,
+  runMarket,
+  runSocialDrafts,
+  runAssemble,
+  runStage,
+} from "./stages.js";
+import templateText from "./email-template.js";
+
+const nowSec = () => Math.floor(Date.now() / 1000);
+
+const SNAPSHOT_SYMBOLS = [
+  { key: "spx", label: "S&P 500", symbol: "SPY" },
+  { key: "ndx", label: "Nasdaq", symbol: "QQQ" },
+  { key: "dji", label: "Dow", symbol: "DIA" },
+  { key: "oil", label: "Crude Oil", symbol: "USO" },
+  { key: "gold", label: "Gold", symbol: "GLD" },
+];
+
+let snapshotCache = null;
+let snapshotAt = 0;
+
+async function handleSnapshot(env) {
+  const now = Date.now();
+  if (snapshotCache && now - snapshotAt < 5 * 60 * 1000) {
+    return Response.json(snapshotCache, {
+      headers: { "Cache-Control": "public, max-age=120", "Access-Control-Allow-Origin": "*" },
+    });
+  }
+  if (!env.FINNHUB_API_KEY) {
+    return Response.json({ error: "unavailable" }, { status: 503 });
+  }
+  try {
+    const items = await Promise.all(
+      SNAPSHOT_SYMBOLS.map(async (s) => {
+        const r = await fetch(
+          `https://finnhub.io/api/v1/quote?symbol=${s.symbol}&token=${env.FINNHUB_API_KEY}`
+        );
+        const q = await r.json();
+        const chg = q.dp != null ? q.dp : 0;
+        return {
+          key: s.key,
+          label: s.label,
+          change_pct: Math.round(chg * 100) / 100,
+          up: chg >= 0,
+        };
+      })
+    );
+    snapshotCache = { as_of: new Date(now).toISOString(), items };
+    snapshotAt = now;
+    return Response.json(snapshotCache, {
+      headers: { "Cache-Control": "public, max-age=120", "Access-Control-Allow-Origin": "*" },
+    });
+  } catch (e) {
+    if (snapshotCache) return Response.json(snapshotCache);
+    return Response.json({ error: "unavailable" }, { status: 503 });
+  }
+}
+
+function buildProviders(env) {
+  // Multi-source news: Marketaux (sentiment + summaries) + Guardian (full text)
+  // + Finnhub fallback. Best of breed.
+  const news = env.MARKETAUX_API_KEY || env.GUARDIAN_API_KEY
+    ? new MultiSourceNewsProvider({
+        marketauxKey: env.MARKETAUX_API_KEY || null,
+        guardianKey: env.GUARDIAN_API_KEY || null,
+        finnhubProvider: env.FINNHUB_API_KEY ? new FinnhubNewsProvider(env.FINNHUB_API_KEY) : null,
+      })
+    : env.FINNHUB_API_KEY
+      ? new FinnhubNewsProvider(env.FINNHUB_API_KEY)
+      : new MockNewsProvider(MOCK_ARTICLES);
+  const summarizer = env.AI
+    ? new WorkersAISummarizer(env.AI, env.WORKERS_AI_MODEL)
+    : env.ANTHROPIC_API_KEY
+      ? new AnthropicSummarizer(env.ANTHROPIC_API_KEY, env.SUMMARIZER_MODEL)
+      : new MockSummarizer();
+  const market = env.FINNHUB_API_KEY
+    ? new FinnhubMarketProvider(env.FINNHUB_API_KEY, env.FMP_API_KEY || null, sp500.stocks, env.UNSPLASH_ACCESS_KEY || null, env.FRED_API_KEY || null)
+    : new MockMarketProvider(MOCK_MARKET);
+  const sender = new ResendSender(env.RESEND_API_KEY, env.BRIEFING_FROM);
+  return { news, summarizer, market, sender };
+}
+
+function companyMap() {
+  return new Map(sp500.stocks.map((s) => [s.ticker, s.name]));
+}
+
+async function runMorningStages(env, runDate) {
+  const db = env.DB;
+  const { news, summarizer, market } = buildProviders(env);
+  const companies = companyMap();
+  const from = addDaysET(runDate, -1);
+  const to = runDate;
+
+  // --- ingest ---
+  await runStage(db, runDate, "ingest", async () => {
+    if (env.INGEST_MODE === "full") {
+      const tickers = sp500.stocks.map((s) => s.ticker);
+      return runIngestFull({
+        db, news,
+        universe: tickers,
+        runDate, from, to, nowSec: nowSec,
+        chunkSize: parseInt(env.INGEST_CHUNK_SIZE || "40", 10),
+      });
+    }
+    const tickers = await getTargetTickers(db);
+    const withNews = await runIngest({ db, news, tickers, runDate, from, to, nowSec: nowSec });
+    return { tickers: tickers.length, withNews: withNews.length };
+  }, nowSec);
+
+  // --- summarize (only tickers that had news; one summary per ticker per day) ---
+  await runStage(db, runDate, "summarize", async () => {
+    const { results } = await db
+      .prepare("SELECT ticker FROM ticker_news_raw WHERE run_date = ? AND article_count > 0")
+      .bind(runDate)
+      .all();
+    return runSummarize({
+      db, summarizer, runDate,
+      items: results, companyByTicker: companies, nowSec: nowSec,
+    });
+  }, nowSec);
+
+  // --- market overview ---
+  await runStage(db, runDate, "market", async () => {
+    return runMarket({ db, market, news, runDate, nowSec: nowSec, summarizer });
+  }, nowSec);
+
+  // --- social drafts ---
+  await runStage(db, runDate, "social", async () => {
+    const drafts = await runSocialDrafts({ db, runDate, nowSec: nowSec });
+    // Email drafts to Pat (not on the website)
+    try {
+      const sender = new ResendSender(env.RESEND_API_KEY, env.BRIEFING_FROM);
+      const xPost = (drafts.x_post || "").replace(/\n/g, "<br>");
+      const linkedin = (drafts.linkedin || "").replace(/\n/g, "<br>");
+      const html = `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+          <h2>Today's Social Drafts — ${runDate}</h2>
+          <h3>X Post</h3>
+          <div style="background:#f5f5f5;padding:15px;border-radius:8px;margin-bottom:20px;">${xPost}</div>
+          <h3>LinkedIn</h3>
+          <div style="background:#f5f5f5;padding:15px;border-radius:8px;margin-bottom:20px;">${linkedin}</div>
+          ${drafts.picture_url ? `<p><a href="${drafts.picture_url}">Picture of the Day (attach to LinkedIn)</a></p>` : ""}
+          <p style="color:#888;font-size:12px;">Copy and paste into Buffer. Newsletter link goes in bio only.</p>
+        </div>`;
+      await sender.send({
+        to: "psm.vault@gmail.com",
+        subject: `Social drafts — ${runDate}`,
+        html,
+        text: `X Post:\n\n${drafts.x_post}\n\n---\n\nLinkedIn:\n\n${drafts.linkedin}`,
+      });
+    } catch (e) {
+      console.error("[social] email failed:", e.message);
+    }
+    return drafts;
+  }, nowSec);
+}
+
+async function runAssembleStage(env, runDate) {
+  const db = env.DB;
+  const { sender } = buildProviders(env);
+  const productName = env.PRODUCT_NAME || "Morning Briefing";
+  const origin = env.PUBLIC_ORIGIN || "https://morning-briefing.pages.dev";
+  let result = null;
+  await runStage(db, runDate, "assemble", async () => {
+    result = await runAssemble({
+      db, sender, runDate,
+      dateLong: dateLongET(new Date()),
+      origin, productName,
+      sessionSecret: env.SESSION_SECRET || "dev-secret-do-not-use-in-prod",
+      templateText,
+      nowSec: nowSec,
+    });
+    return result;
+  }, nowSec);
+  return result;
+}
+
+// Individual stage functions for split schedule
+async function runIngestStage(env, runDate) {
+  const db = env.DB;
+  const { news } = buildProviders(env);
+  const from = addDaysET(runDate, -1);
+  const to = runDate;
+  await runStage(db, runDate, "ingest", async () => {
+    // Skip per-ticker ingest (personalization removed); market stage fetches directly
+    return { skipped: true, note: "personalization removed" };
+  }, nowSec);
+}
+
+async function runMarketStage(env, runDate) {
+  const db = env.DB;
+  const { news, summarizer, market } = buildProviders(env);
+  await runStage(db, runDate, "market", async () => {
+    return runMarket({ db, market, news, runDate, nowSec: nowSec, summarizer });
+  }, nowSec);
+}
+
+async function runSocialStage(env, runDate) {
+  const db = env.DB;
+  await runStage(db, runDate, "social", async () => {
+    const drafts = await runSocialDrafts({ db, runDate, nowSec: nowSec });
+    try {
+      const sender = new ResendSender(env.RESEND_API_KEY, env.BRIEFING_FROM);
+      const xPost = (drafts.x_post || "").replace(/\n/g, "<br>");
+      const linkedin = (drafts.linkedin || "").replace(/\n/g, "<br>");
+      const html = `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+          <h2>Social drafts for ${runDate}</h2>
+          <h3>X</h3><p>${xPost}</p>
+          <h3>LinkedIn</h3><p>${linkedin}</p>
+        </div>`;
+      // Send to Pat only (not public)
+      await sender.send({
+        to: "psm.vault@gmail.com",
+        subject: `Social drafts ${runDate}`,
+        html,
+      });
+      return { sent: true };
+    } catch (e) {
+      console.error("[social] send failed:", e.message);
+      return { sent: false, error: e.message };
+    }
+  }, nowSec);
+}
+
+export default {
+  async scheduled(_event, env, _ctx) {
+    const now = new Date();
+    const runDate = runDateET(now);
+    const db = env.DB;
+
+    // Step-based pipeline: each tick checks what's done and runs the next step.
+    // No fixed times — stages chain automatically when the previous one completes.
+    const { results: stages } = await db.prepare(
+      "SELECT stage, status FROM pipeline_runs WHERE run_date = ?"
+    ).bind(runDate).all();
+    const done = new Set(stages.filter(s => s.status === "done").map(s => s.stage));
+
+    // Step 1: Ingest (fast setup)
+    if (!done.has("ingest")) {
+      await runIngestStage(env, runDate);
+      return;
+    }
+    // Step 2: Market (news + AI summaries — the slow part)
+    if (!done.has("market")) {
+      await runMarketStage(env, runDate);
+      return;
+    }
+    // Step 3: Assemble and send (only during 6-10 AM ET window)
+    const hour = etHour(now);
+    if (!done.has("assemble") && hour >= 6 && hour <= 10) {
+      await runAssembleStage(env, runDate);
+      return;
+    }
+    // Other hours: no-op (hourly tick keeps DST handling simple).
+  },
+
+  // Admin stats endpoint + health check + public market snapshot.
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    // Manual full run trigger (temporary for testing)
+    // Uses waitUntil for background execution (bypasses 30s HTTP limit)
+    if (url.pathname === "/admin/run-now") {
+      const step = url.searchParams.get("step") || "all";
+      const force = url.searchParams.get("force") === "1";
+      const runDate = runDateET(new Date());
+
+      ctx.waitUntil((async () => {
+        const db = env.DB;
+        const { news, summarizer, market } = buildProviders(env);
+        const testLimit = url.searchParams.get("limit") ? parseInt(url.searchParams.get("limit")) : null;
+
+        if (force) {
+          await db.prepare("DELETE FROM pipeline_runs WHERE run_date = ?").bind(runDate).run();
+          await db.prepare("DELETE FROM email_sends WHERE run_date = ?").bind(runDate).run();
+        }
+
+        if (step === "market" || step === "all") {
+          await runStage(db, runDate, "market", async () => {
+            // For testing, allow limiting stories
+            const origTopNews = news.topNews.bind(news);
+            if (testLimit) {
+              news.topNews = async (...args) => (await origTopNews(...args)).slice(0, testLimit);
+            }
+            return runMarket({ db, market, news, runDate, nowSec: nowSec, summarizer });
+          }, nowSec);
+        }
+        if (step === "assemble" || step === "all") {
+          await runAssembleStage(env, runDate);
+        }
+      })());
+
+      return Response.json({ runDate, status: "started", step });
+    }
+    // Check pipeline status
+    if (url.pathname === "/admin/status") {
+      const runDate = runDateET(new Date());
+      const db = env.DB;
+      const { results } = await db.prepare(
+        "SELECT stage, status FROM pipeline_runs WHERE run_date = ? ORDER BY stage"
+      ).bind(runDate).all();
+      const { results: sends } = await db.prepare(
+        "SELECT status, COUNT(*) as n FROM email_sends WHERE run_date = ? GROUP BY status"
+      ).bind(runDate).all();
+      return Response.json({ runDate, stages: results, sends });
+    }
+    // Test AI summarization on one story (fast)
+    if (url.pathname === "/admin/test-ai") {
+      const { summarizer } = buildProviders(env);
+      // Accept POST with headline and text, or use defaults
+      let headline, text;
+      if (request.method === "POST") {
+        try {
+          const body = await request.json();
+          headline = body.headline;
+          text = body.text;
+        } catch (e) {
+          return Response.json({ error: "invalid_json" }, 400);
+        }
+      } else {
+        headline = "Chip stocks slide after Broadcom boss likens AI investing to 'casino'";
+        text = "Shares in semiconductor companies fell on Tuesday after the boss of Broadcom compared many AI investors to casino gamblers. South Korea's Kospi tumbled 6.25% as investors dumped chip stocks. Samsung Electronics shares dropped 7.4%, SK Hynix was down 10%.";
+      }
+      if (!headline || !text) return Response.json({ error: "headline_and_text_required" }, 400);
+      const sources = [{ source: "test", text }];
+      try {
+        const summary = await summarizer.summarizeStory(headline, sources);
+        return Response.json({ headline, summary });
+      } catch (e) {
+        return Response.json({ error: e.message }, 500);
+      }
+    }
+    if (url.pathname === "/api/snapshot") {
+      return handleSnapshot(env);
+    }
+
+
+
+    if (url.pathname === "/admin/stats") {
+      const key = url.searchParams.get("key");
+      if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) {
+        return new Response("forbidden", { status: 403 });
+      }
+      const totalUsers = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM users"
+      ).first();
+      const byDay = await env.DB.prepare(
+        `SELECT date(created_at, 'unixepoch') AS day, COUNT(*) AS n
+         FROM users
+         WHERE created_at >= strftime('%s', 'now', '-30 days')
+         GROUP BY day ORDER BY day ASC`
+      ).all();
+      const totalTickers = await env.DB.prepare(
+        "SELECT COUNT(*) AS n FROM user_tickers"
+      ).first();
+      const avgTickers = await env.DB.prepare(
+        `SELECT AVG(c) AS a FROM
+         (SELECT COUNT(*) AS c FROM user_tickers GROUP BY user_id)`
+      ).first();
+      const noTickers = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM users u
+         WHERE NOT EXISTS (SELECT 1 FROM user_tickers t WHERE t.user_id = u.id)`
+      ).first();
+      return Response.json({
+        total_users: totalUsers.n,
+        signups_by_day: byDay.results,
+        total_tickers: totalTickers.n,
+        avg_tickers_per_user: Math.round((avgTickers.a || 0) * 100) / 100,
+        users_with_no_tickers: noTickers.n,
+        generated_at: new Date().toISOString(),
+      });
+    }
+    if (url.pathname === "/admin/preview") {
+      const key = url.searchParams.get("key");
+      if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) {
+        return new Response("forbidden", { status: 403 });
+      }
+      const email = (url.searchParams.get("email") || "").trim().toLowerCase();
+      if (!email) return Response.json({ error: "email_required" }, 400);
+
+      const user = await env.DB.prepare(
+        "SELECT id, email, first_name, theme FROM users WHERE email = ?"
+      ).bind(email).first();
+      if (!user) return Response.json({ error: "user_not_found" }, 404);
+
+      const { results: tickerRows } = await env.DB.prepare(
+        "SELECT ticker FROM user_tickers WHERE user_id = ? ORDER BY ticker"
+      ).bind(user.id).all();
+      const tickers = tickerRows.map((r) => r.ticker);
+
+      const db = env.DB;
+      const { news, summarizer, market, sender } = buildProviders(env);
+      const companies = companyMap();
+      const runDate = runDateET(new Date());
+      const from = addDaysET(runDate, -1);
+      const to = runDate;
+      const ns = nowSec;
+
+      // Ingest news for this user's tickers
+      await runIngest({ db, news, tickers, runDate, from, to, nowSec: ns });
+      // Summarize
+      const { results: newsItems } = await db
+        .prepare("SELECT ticker FROM ticker_news_raw WHERE run_date = ? AND article_count > 0")
+        .bind(runDate).all();
+      const userItems = newsItems.filter((i) => tickers.includes(i.ticker));
+      await runSummarize({ db, summarizer, runDate, items: userItems, companyByTicker: companies, nowSec: ns });
+      // Market overview (idempotent)
+      await runMarket({ db, market, runDate, nowSec: ns });
+
+      // Assemble single email
+      const { results: briefRows } = await db
+        .prepare("SELECT section, payload FROM market_briefs WHERE run_date = ?")
+        .bind(runDate).all();
+      const { results: sums } = await db
+        .prepare("SELECT ticker, company, summary FROM ticker_summaries WHERE run_date = ? AND ticker IN (" +
+          tickers.map(() => "?").join(",") + ") ORDER BY ticker")
+        .bind(runDate, ...tickers).all();
+
+      const productName = env.PRODUCT_NAME || "Morning Brief";
+      const origin = env.PUBLIC_ORIGIN || "https://morningbrief.link";
+      const dateLong = dateLongET(new Date());
+      const token = await signToken(user.id, env.SESSION_SECRET || "dev-secret");
+      const data = {
+        first_name: user.first_name,
+        date_long: dateLong,
+        preheader: sums.length > 0
+          ? `News on ${sums.map((s) => s.ticker).join(", ")} — ${dateLong}`
+          : `Top news, markets, and today's calendar — ${dateLong}`,
+        unsubscribe_url: `${origin}/api/unsubscribe?token=${token}`,
+        top_news: [],
+        before_bell: [],
+        your_stocks: sums,
+        calendar_earnings: [],
+        calendar_econ: [],
+      };
+      // Fill market sections from briefRows
+      for (const row of briefRows) {
+        try {
+          const payload = JSON.parse(row.payload);
+          if (row.section === "top_news") data.top_news = payload;
+          else if (row.section === "before_bell") data.before_bell = payload;
+          else if (row.section === "calendar") {
+            data.calendar_earnings = payload.earnings || [];
+            data.calendar_econ = payload.econ || [];
+          }
+        } catch {}
+      }
+
+      const html = renderTemplate(templateText, data, { theme: user.theme === "dark" ? "dark" : "light" });
+      const subject = `${productName}: ${dateLong} (Preview)`;
+      const res = await sender.send({ to: user.email, subject, html, text: `${productName} preview for ${dateLong}` });
+
+      return Response.json({
+        ok: true,
+        sent: res && res.ok !== false,
+        tickers,
+        summaries: sums.length,
+        run_date: runDate,
+      });
+    }
+    return new Response("morning-briefing-pipeline ok", {
+      headers: { "Content-Type": "text/plain" },
+    });
+  },
+};

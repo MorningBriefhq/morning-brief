@@ -1,0 +1,56 @@
+# Morning Briefing — overnight pipeline worker config.
+#
+# This is a SEPARATE worker from the Pages site (Pages Functions can't run cron
+# triggers). It binds to the SAME D1 database.
+#
+# Deploy: wrangler deploy --config pipeline/wrangler.toml
+#   (run from the project root ~/workspace/morning-briefing)
+#
+# Cron: hourly tick. The worker itself checks the America/New_York hour:
+#   4:xx ET -> ingest + summarize + market overview
+#   6:xx ET -> assemble + send (emails land ~7 AM ET)
+# ET-anchored windows stay correct across DST; cron is UTC and DST-naive.
+#
+# First-time setup (same D1 as the site):
+#   1. wrangler d1 execute morning-briefing --file=pipeline/schema-additions.sql
+#      (adds pipeline tables; also adds users.unsubscribed_at — apply ONCE)
+#   2. wrangler secret put SESSION_SECRET   --config pipeline/wrangler.toml
+#      (must match the Pages project's SESSION_SECRET — same HMAC signs
+#      both session cookies and unsubscribe tokens)
+#
+# Optional keys (all have mock/log-only fallbacks when unset):
+#   FINNHUB_API_KEY    -> real per-ticker news (else MockNewsProvider)
+#   ANTHROPIC_API_KEY  -> Anthropic summaries (only used if `ai` binding absent;
+#                         Workers AI is the default when deployed)
+#   WORKERS_AI_MODEL   -> Workers AI model id (default: @cf/meta/llama-3.1-8b-instruct)
+#   RESEND_API_KEY     -> real email sending   (else log-only stub)
+#   SUMMARIZER_MODEL   -> Anthropic model id (default: claude-haiku-4-5;
+#                         check https://docs.anthropic.com/en/docs/about-claude/models/overview)
+
+# Workers AI binding — free-tier LLM inference, no API key needed.
+[ai]
+binding = "AI"
+
+name = "morning-briefing-pipeline"
+main = "pipeline/worker.js"
+compatibility_date = "2026-10-11"
+
+[triggers]
+crons = ["0 * * * *"]
+
+[vars]
+# Display name used in subject lines ("<Name>: Monday, October 12, 2026").
+PRODUCT_NAME = "Morning Briefing"
+BRIEFING_FROM = "Morning Briefing <briefing@morningbrief.link>"
+# Public origin of the Pages site, used for unsubscribe links.
+PUBLIC_ORIGIN = "https://morning-briefing.pages.dev"
+# Ingest scope: "held" (default) = only tickers held by subscribed users.
+# "full" = whole S&P 500 universe in chunks (needs paid plan + tighter cron;
+# see ARCHITECTURE.md for the math).
+INGEST_MODE = "held"
+INGEST_CHUNK_SIZE = "40"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "morning-briefing"
+database_id = "11c2b098-b593-457d-ba82-dbed46f60590"

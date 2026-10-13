@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Morning Brief</title>
+<!--
+  ============================================================================
+  MORNING BRIEFING — HTML EMAIL TEMPLATE
+  ----------------------------------------------------------------------------
+  Placeholder convention: Handlebars-style.
+
+  Scalars (simple string replacement):
+    {{first_name}}       Subscriber's first name, e.g. "Pat"
+    {{date_long}}        Full date line, e.g. "Monday, October 12, 2026"
+    {{preheader}}        Hidden preview text shown by inboxes next to the
+                         subject line (one short sentence)
+    {{unsubscribe_url}}  Per-recipient unsubscribe link for the footer
+
+  Repeatable lists ({{#each}} ... {{/each}} loops; the backend renders one
+  copy of the block per list item):
+    {{#each top_news}}        {{headline}}  {{summary}}  ({{index}} = 1-based number, optional)
+    {{#each before_bell}}     {{label}}  {{text}}
+    {{#each your_stocks}}     {{ticker}}  {{company}}  {{summary}}
+    {{#each calendar_earnings}}{{ticker}}  {{company}}  {{time}}  (e.g. "Tuesday · Before open")
+    {{#each calendar_econ}}   {{time_et}}  {{event}}
+
+  Empty lists: if a list is empty the whole {{#each}} block is removed, so a
+  section with no items simply does not render.
+
+  Email constraints honored: table-based layout, ALL critical CSS inline,
+  no webfonts, no external images, max-width 640px, fluid at 320px.
+  The <style> block below holds ONLY progressive-enhancement media queries.
+  ============================================================================
+-->
+<style>
+@media only screen and (max-width: 480px) {
+  .email-outer { padding: 12px 6px !important; }
+  .email-pad   { padding-left: 20px !important; padding-right: 20px !important; }
+  .wordmark    { font-size: 20px !important; letter-spacing: 3px !important; }
+  .headline    { font-size: 15px !important; }
+  .greeting    { font-size: 16px !important; }
+  .bb-label    { font-size: 11px !important; }
+}
+</style>
+</head>
+<body style="margin:0;padding:0;word-spacing:normal;background-color:#f4f6f8;">
+<!-- Hidden preheader: inbox preview text -->
+<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">{{preheader}}</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f8;">
+<tr>
+<td class="email-outer" align="center" style="padding:24px 12px;">
+
+<div style="max-width:640px;margin:0 auto;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;">
+
+<!-- Navy top strip -->
+<tr>
+<td style="background-color:#0e2a47;font-size:0;line-height:0;height:6px;">&nbsp;</td>
+</tr>
+
+<!-- Header: wordmark, gold rule, date -->
+<tr>
+<td class="email-pad" style="padding:32px 36px 6px 36px;">
+<div class="wordmark" style="font-family:Georgia,'Times New Roman',serif;font-size:26px;letter-spacing:4px;color:#101418;font-weight:normal;">MORNING BRIEFING</div>
+<div style="width:52px;height:2px;background-color:#b8892e;margin:14px 0 12px 0;font-size:0;line-height:0;">&nbsp;</div>
+<div style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;">{{date_long}}</div>
+</td>
+</tr>
+
+<!-- Greeting -->
+<tr>
+<td class="email-pad" style="padding:18px 36px 4px 36px;">
+<div class="greeting" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;line-height:1.6;color:#101418;">Good morning, {{first_name}} &mdash; here&rsquo;s what matters before the opening bell.</div>
+</td>
+</tr>
+
+<!-- ============ TOP NEWS ============ -->
+<tr>
+<td class="email-pad" style="padding:30px 36px 0 36px;">
+<div style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">TOP NEWS</div>
+<div style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
+</td>
+</tr>
+{{#each top_news}}
+<tr>
+<td class="email-pad" style="padding:20px 36px 20px 36px;border-bottom:1px solid #e2e7ec;">
+<div style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#b8892e;margin-bottom:8px;">{{index}}</div>
+<div class="headline" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;line-height:1.4;color:#101418;margin-bottom:6px;">{{headline}}</div>
+<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#3a424b;">{{summary}}</div>
+</td>
+</tr>
+{{/each}}
+
+<!-- ============ STOCKS TO WATCH ============ -->
+{{#if stocks_to_watch}}
+<tr>
+<td class="email-pad" style="padding:30px 36px 0 36px;">
+<div style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">STOCKS TO WATCH</div>
+<div style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
+</td>
+</tr>
+{{#each stocks_to_watch}}
+<tr>
+<td class="email-pad" style="padding:20px 36px 20px 36px;border-bottom:1px solid #e2e7ec;">
+<div style="margin-bottom:10px;">
+<span style="display:inline-block;background-color:#0e2a47;color:#ffffff;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;padding:5px 10px;border-radius:3px;">{{ticker}}</span>
+<span style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#101418;margin-left:10px;">{{company}}</span>
+</div>
+<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#3a424b;">{{reason}}</div>
+</td>
+</tr>
+{{/each}}
+{{/if}}
+
+<!-- ============ BEFORE THE BELL ============ -->
+<tr>
+<td class="email-pad" style="padding:30px 36px 0 36px;">
+<div style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">BEFORE THE BELL</div>
+<div style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
+</td>
+</tr>
+<tr>
+<td class="email-pad" style="padding:14px 36px 6px 36px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+{{#each before_bell}}
+<tr>
+<td class="bb-label" valign="top" width="92" style="padding:9px 12px 9px 0;font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:1.5px;color:#0e2a47;font-weight:bold;white-space:nowrap;vertical-align:top;">{{label}}</td>
+<td valign="top" style="padding:9px 0 9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#101418;vertical-align:top;border-bottom:1px solid #e2e7ec;">{{text}}</td>
+</tr>
+{{/each}}
+</table>
+</td>
+</tr>
+
+<!-- ============ TODAY'S CALENDAR ============ -->
+<tr>
+<td class="email-pad" style="padding:30px 36px 0 36px;">
+<div style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">TODAY&rsquo;S CALENDAR</div>
+<div style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
+</td>
+</tr>
+<tr>
+<td class="email-pad" style="padding:16px 36px 4px 36px;">
+<div style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;margin-bottom:6px;">EARNINGS</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+{{#each calendar_earnings}}
+<tr>
+<td valign="middle" style="padding:10px 0;border-bottom:1px solid #e2e7ec;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#101418;">
+<span style="font-weight:700;">{{ticker}}</span>
+<span style="color:#5b6570;">&nbsp;&middot;&nbsp;{{company}}</span>
+</td>
+<td valign="middle" align="right" style="padding:10px 0 10px 12px;border-bottom:1px solid #e2e7ec;white-space:nowrap;">
+<span style="display:inline-block;background-color:#f4f6f8;border:1px solid #e2e7ec;border-radius:3px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;color:#5b6570;padding:4px 9px;">{{time}}</span>
+</td>
+</tr>
+{{/each}}
+</table>
+</td>
+</tr>
+<tr>
+<td class="email-pad" style="padding:14px 36px 10px 36px;">
+<div style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;margin-bottom:6px;">ECONOMIC RELEASES</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+{{#each calendar_econ}}
+<tr>
+<td valign="top" width="118" style="padding:9px 12px 9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#0e2a47;white-space:nowrap;vertical-align:top;">{{time_et}}</td>
+<td valign="top" style="padding:9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#101418;vertical-align:top;border-bottom:1px solid #e2e7ec;">{{event}}</td>
+</tr>
+{{/each}}
+</table>
+</td>
+</tr>
+
+<!-- ============ FOOTER ============ -->
+<tr>
+<td class="email-pad" style="padding:26px 36px 36px 36px;">
+<div style="height:1px;background-color:#e2e7ec;margin:0 0 18px 0;font-size:0;line-height:0;">&nbsp;</div>
+<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:#5b6570;margin-bottom:10px;">For informational purposes only. Not investment advice.</div>
+<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:#5b6570;margin-bottom:10px;">You&rsquo;re receiving Morning Brief because you signed up. <a href="{{unsubscribe_url}}" style="color:#0e2a47;text-decoration:underline;">Unsubscribe</a></div>
+<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:#5b6570;">&copy; 2026 Morning Brief. All rights reserved.</div>
+</td>
+</tr>
+
+</table>
+</div>
+
+</td>
+</tr>
+</table>
+</body>
+</html>

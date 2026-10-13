@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/x-icon" href="/assets/img/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+    <link rel="apple-touch-icon" href="/assets/img/favicon-180.png">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Morning Brief">
+    <meta property="og:title" content="Morning Brief — The market news that matters, before the open.">
+    <meta property="og:description" content="A sharp, free daily market briefing. Indices, yields, commodities, earnings — no filler.">
+    <meta property="og:image" content="https://morningbrief.link/assets/img/og-image.jpg">
+    <meta property="og:image:width" content="2192">
+    <meta property="og:image:height" content="1152">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Morning Brief — The market news that matters, before the open.">
+    <meta name="twitter:description" content="A sharp, free daily market briefing. Indices, yields, commodities, earnings — no filler.">
+    <meta name="twitter:image" content="https://morningbrief.link/assets/img/og-image.jpg">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Archive — Morning Brief</title>
+  <meta name="description" content="Browse past editions of the Morning Brief market overview.">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("mb_theme");
+        if (t !== "light" && t !== "dark") {
+          t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <style>
+    .archive-cal-wrap { margin: 1.5rem 0 2rem; max-width: 340px; }
+    .archive-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+    .archive-cal-head strong { font-family: var(--serif); font-size: 1rem; }
+    .archive-cal-nav {
+      background: transparent; border: 1px solid var(--hairline); border-radius: 50%;
+      width: 2rem; height: 2rem; cursor: pointer; color: var(--muted);
+      display: inline-flex; align-items: center; justify-content: center; font-size: 1rem;
+    }
+    .archive-cal-nav:hover { color: var(--ink); border-color: var(--muted); }
+    .archive-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .archive-cal-dow {
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--muted); text-align: center; padding: 0.3rem 0;
+    }
+    .archive-cal-day {
+      aspect-ratio: 1; border: none; background: transparent; border-radius: 50%;
+      font-size: 0.85rem; color: var(--muted); cursor: default;
+      display: flex; align-items: center; justify-content: center; padding: 0;
+    }
+    .archive-cal-day.has-issue { cursor: pointer; color: var(--ink); font-weight: 600; }
+    .archive-cal-day.has-issue:hover { background: var(--hairline); }
+    .archive-cal-day.active { background: var(--navy); color: #fff; }
+    [data-theme="dark"] .archive-cal-day.active { background: var(--gold); color: #0e2a47; }
+    .archive-cal-day.today { text-decoration: underline; text-underline-offset: 3px; }
+    .archive-section { margin-bottom: 2.5rem; }
+    .archive-section h2 {
+      font-family: var(--serif); font-size: 0.8rem; letter-spacing: 2.5px;
+      color: var(--navy); margin-bottom: 1rem; text-transform: uppercase;
+    }
+    [data-theme="dark"] .archive-section h2 { color: var(--gold); }
+    .archive-item { padding: 1rem 0; border-bottom: 1px solid var(--hairline); }
+    .archive-item:last-child { border-bottom: none; }
+    .archive-item h3 { font-size: 1.05rem; margin: 0 0 0.4rem; line-height: 1.4; }
+    .archive-item p { color: var(--muted); font-size: 0.95rem; line-height: 1.65; margin: 0; }
+    .archive-item .src { font-size: 0.8rem; color: var(--muted); opacity: 0.7; margin-top: 0.35rem; display: block; }
+    .archive-cal { display: flex; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--hairline); font-size: 0.95rem; }
+    .archive-cal .tick { font-weight: 700; min-width: 4.5rem; }
+    .archive-empty { color: var(--muted); font-style: italic; }
+    #archive-loading { color: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="wordmark" href="/"><span class="wordmark-gold">&#9670;</span>Morning Brief</a>
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="topbar-nav" id="topbar-nav">
+        <a href="/" class="nav-cta">Home</a>
+        <a href="/markets.html" class="nav-cta">Markets</a>
+        <a href="/earnings.html" class="nav-cta">Earnings</a>
+        <a href="/archive.html" class="nav-cta">Archive</a>
+        <a href="/profile.html" class="nav-cta">Profile</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
+      </nav>
+    </div>
+  </header>
+  <div class="nav-scrim" id="nav-scrim"></div>
+
+  <main>
+    <section class="section">
+      <div class="wrap">
+        <p class="kicker">Archive</p>
+        <h1>What happened that day</h1>
+        <p class="section-lede">Every edition's market overview — top stories, deals, analyst moves, and the day's calendar. No personalization, just the record.</p>
+
+        <div class="archive-cal-wrap">
+          <div class="archive-cal-head">
+            <button class="archive-cal-nav" id="cal-prev" type="button" aria-label="Previous month">&larr;</button>
+            <strong id="cal-title"></strong>
+            <button class="archive-cal-nav" id="cal-next" type="button" aria-label="Next month">&rarr;</button>
+          </div>
+          <div class="archive-cal-grid" id="cal-grid"></div>
+        </div>
+        <div id="archive-loading">Loading…</div>
+        <div id="archive-content"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <a class="wordmark" href="/"><span class="wordmark-gold">&#9670;</span>Morning Brief</a>
+      <p class="disclaimer" style="margin-top:1.25em;">
+        For informational purposes only. Not investment advice.
+      </p>
+      <small>&copy; 2026 Morning Brief. All rights reserved.</small>
+    </div>
+  </footer>
+
+  <script src="/assets/js/app.js"></script>
+  <script>
+    MB.theme.initToggle(document.getElementById("theme-toggle"));
+
+    var contentEl = document.getElementById("archive-content");
+    var loadingEl = document.getElementById("archive-loading");
+    var calGrid = document.getElementById("cal-grid");
+    var calTitle = document.getElementById("cal-title");
+
+    var issueDates = {};   // "2026-10-12" -> true
+    var viewYear, viewMonth; // month being displayed
+    var activeDate = null;
+
+    var DOWS = ["S", "M", "T", "W", "T", "F", "S"];
+
+    function isoDay(y, m, d) {
+      return y + "-" + ("0" + (m + 1)).slice(-2) + "-" + ("0" + d).slice(-2);
+    }
+
+    function renderCalendar() {
+      calTitle.textContent = new Date(viewYear, viewMonth, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      var html = DOWS.map(function (d) { return '<div class="archive-cal-dow">' + d + "</div>"; }).join("");
+      var first = new Date(viewYear, viewMonth, 1).getDay();
+      var days = new Date(viewYear, viewMonth + 1, 0).getDate();
+      for (var i = 0; i < first; i++) html += '<div></div>';
+      var todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+      for (var d = 1; d <= days; d++) {
+        var iso = isoDay(viewYear, viewMonth, d);
+        var cls = "archive-cal-day";
+        var attrs = "";
+        if (issueDates[iso]) {
+          cls += " has-issue";
+          attrs = ' data-date="' + iso + '" role="button" tabindex="0"';
+        }
+        if (iso === activeDate) cls += " active";
+        if (iso === todayIso) cls += " today";
+        html += '<button type="button" class="' + cls + '"' + attrs + (issueDates[iso] ? "" : " disabled") + ">" + d + "</button>";
+      }
+      calGrid.innerHTML = html;
+      calGrid.querySelectorAll("[data-date]").forEach(function (b) {
+        b.addEventListener("click", function () { loadDay(b.getAttribute("data-date")); });
+      });
+    }
+
+    document.getElementById("cal-prev").addEventListener("click", function () {
+      viewMonth--;
+      if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+      renderCalendar();
+    });
+    document.getElementById("cal-next").addEventListener("click", function () {
+      viewMonth++;
+      if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+      renderCalendar();
+    });
+
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+      });
+    }
+
+    function storyList(items) {
+      if (!items || !items.length) return '<p class="archive-empty">Nothing recorded.</p>';
+      return items.map(function (s) {
+        return '<div class="archive-item"><h3>' + esc(s.headline) + '</h3>' +
+          (s.summary ? '<p>' + esc(s.summary) + '</p>' : '') + '</div>';
+      }).join("");
+    }
+
+    function renderDay(data) {
+      var s = data.sections;
+      var html = "";
+
+      if (s.before_bell && s.before_bell.length) {
+        html += '<div class="archive-section"><h2>Before the Bell</h2>' +
+          s.before_bell.map(function (b) {
+            return '<div class="archive-cal"><span class="tick">' + esc(b.label) + '</span><span>' + esc(b.text) + '</span></div>';
+          }).join("") + '</div>';
+      }
+
+      html += '<div class="archive-section"><h2>Top News</h2>' + storyList(s.top_news) + '</div>';
+
+      if (s.mergers && s.mergers.length) {
+        html += '<div class="archive-section"><h2>Mergers &amp; Acquisitions</h2>' + storyList(s.mergers) + '</div>';
+      }
+
+      if (s.analysts && s.analysts.length) {
+        html += '<div class="archive-section"><h2>Analyst Moves</h2>' + storyList(s.analysts) + '</div>';
+      }
+
+      var cal = s.calendar || {};
+      if ((cal.earnings && cal.earnings.length) || (cal.econ && cal.econ.length)) {
+        html += '<div class="archive-section"><h2>The Day\'s Calendar</h2>';
+        (cal.earnings || []).forEach(function (e) {
+          html += '<div class="archive-cal"><span class="tick">' + esc(e.ticker) + '</span><span>' + esc(e.company ? e.company + " — " : "") + esc(e.time || '') + '</span></div>';
+        });
+        (cal.econ || []).forEach(function (e) {
+          html += '<div class="archive-cal"><span class="tick">' + esc(e.time_et || '') + '</span><span>' + esc(e.event) + '</span></div>';
+        });
+        html += '</div>';
+      }
+
+      if (s.picture && s.picture.image) {
+        html += '<div class="archive-section"><h2>Picture of the Day</h2>' +
+          '<img src="' + esc(s.picture.image) + '" alt="' + esc(s.picture.headline || '') + '" style="width:100%;max-width:600px;height:auto;border-radius:4px;display:block;">' +
+          '<p style="font-size:0.85rem;color:var(--muted);margin-top:0.5rem;">' + esc(s.picture.caption || '') +
+          (s.picture.credit ? ' <span style="opacity:0.7;">(' + esc(s.picture.credit) + ')</span>' : '') + '</p></div>';
+      }
+
+      contentEl.innerHTML = html;
+    }
+
+    function loadDay(date) {
+      loadingEl.style.display = "block";
+      contentEl.innerHTML = "";
+      activeDate = date;
+      renderCalendar();
+      fetch("/api/archive?date=" + encodeURIComponent(date))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          loadingEl.style.display = "none";
+          renderDay(data);
+        })
+        .catch(function () {
+          loadingEl.textContent = "Could not load that date.";
+        });
+    }
+
+    fetch("/api/archive")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        loadingEl.style.display = "none";
+        var dates = data.dates || [];
+        if (!dates.length) {
+          contentEl.innerHTML = '<p class="archive-empty">No archived editions yet. Check back after the first morning run.</p>';
+          return;
+        }
+        dates.forEach(function (d) { issueDates[d] = true; });
+        var latest = dates[0].split("-");
+        viewYear = parseInt(latest[0], 10);
+        viewMonth = parseInt(latest[1], 10) - 1;
+        loadDay(dates[0]);
+      })
+      .catch(function () {
+        loadingEl.textContent = "Could not load the archive.";
+      });
+  </script>
+</body>
+</html>

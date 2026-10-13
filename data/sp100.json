@@ -1,0 +1,394 @@
+[
+ {
+  "ticker": "AAPL",
+  "name": "Apple Inc."
+ },
+ {
+  "ticker": "MSFT",
+  "name": "Microsoft"
+ },
+ {
+  "ticker": "NVDA",
+  "name": "Nvidia"
+ },
+ {
+  "ticker": "AMZN",
+  "name": "Amazon"
+ },
+ {
+  "ticker": "META",
+  "name": "Meta Platforms"
+ },
+ {
+  "ticker": "GOOGL",
+  "name": "Alphabet Inc. (Class A)"
+ },
+ {
+  "ticker": "GOOG",
+  "name": "Alphabet Inc. (Class C)"
+ },
+ {
+  "ticker": "TSLA",
+  "name": "Tesla, Inc."
+ },
+ {
+  "ticker": "BRK.B",
+  "name": "Berkshire Hathaway"
+ },
+ {
+  "ticker": "JPM",
+  "name": "JPMorgan Chase"
+ },
+ {
+  "ticker": "V",
+  "name": "Visa Inc."
+ },
+ {
+  "ticker": "XOM",
+  "name": "ExxonMobil"
+ },
+ {
+  "ticker": "UNH",
+  "name": "UnitedHealth Group"
+ },
+ {
+  "ticker": "MA",
+  "name": "Mastercard"
+ },
+ {
+  "ticker": "JNJ",
+  "name": "Johnson & Johnson"
+ },
+ {
+  "ticker": "WMT",
+  "name": "Walmart"
+ },
+ {
+  "ticker": "PG",
+  "name": "Procter & Gamble"
+ },
+ {
+  "ticker": "ORCL",
+  "name": "Oracle Corporation"
+ },
+ {
+  "ticker": "HD",
+  "name": "Home Depot (The)"
+ },
+ {
+  "ticker": "BAC",
+  "name": "Bank of America"
+ },
+ {
+  "ticker": "CVX",
+  "name": "Chevron Corporation"
+ },
+ {
+  "ticker": "ABBV",
+  "name": "AbbVie"
+ },
+ {
+  "ticker": "KO",
+  "name": "Coca-Cola Company (The)"
+ },
+ {
+  "ticker": "AVGO",
+  "name": "Broadcom"
+ },
+ {
+  "ticker": "LLY",
+  "name": "Lilly (Eli)"
+ },
+ {
+  "ticker": "COST",
+  "name": "Costco"
+ },
+ {
+  "ticker": "MRK",
+  "name": "Merck & Co."
+ },
+ {
+  "ticker": "TMO",
+  "name": "Thermo Fisher Scientific"
+ },
+ {
+  "ticker": "PEP",
+  "name": "PepsiCo"
+ },
+ {
+  "ticker": "ADBE",
+  "name": "Adobe Inc."
+ },
+ {
+  "ticker": "WFC",
+  "name": "Wells Fargo"
+ },
+ {
+  "ticker": "MCD",
+  "name": "McDonald's"
+ },
+ {
+  "ticker": "CSCO",
+  "name": "Cisco"
+ },
+ {
+  "ticker": "CRM",
+  "name": "Salesforce"
+ },
+ {
+  "ticker": "AMD",
+  "name": "Advanced Micro Devices"
+ },
+ {
+  "ticker": "NFLX",
+  "name": "Netflix"
+ },
+ {
+  "ticker": "GS",
+  "name": "Goldman Sachs"
+ },
+ {
+  "ticker": "MS",
+  "name": "Morgan Stanley"
+ },
+ {
+  "ticker": "LIN",
+  "name": "Linde plc"
+ },
+ {
+  "ticker": "ABT",
+  "name": "Abbott Laboratories"
+ },
+ {
+  "ticker": "TXN",
+  "name": "Texas Instruments"
+ },
+ {
+  "ticker": "DIS",
+  "name": "Walt Disney Company (The)"
+ },
+ {
+  "ticker": "AMGN",
+  "name": "Amgen"
+ },
+ {
+  "ticker": "HON",
+  "name": "Honeywell Technologies"
+ },
+ {
+  "ticker": "PM",
+  "name": "Philip Morris International"
+ },
+ {
+  "ticker": "IBM",
+  "name": "IBM"
+ },
+ {
+  "ticker": "QCOM",
+  "name": "Qualcomm"
+ },
+ {
+  "ticker": "AMAT",
+  "name": "Applied Materials"
+ },
+ {
+  "ticker": "GE",
+  "name": "GE Aerospace"
+ },
+ {
+  "ticker": "CAT",
+  "name": "Caterpillar Inc."
+ },
+ {
+  "ticker": "UNP",
+  "name": "Union Pacific Corporation"
+ },
+ {
+  "ticker": "LOW",
+  "name": "Lowe's"
+ },
+ {
+  "ticker": "SPGI",
+  "name": "S&P Global"
+ },
+ {
+  "ticker": "INTU",
+  "name": "Intuit"
+ },
+ {
+  "ticker": "BKNG",
+  "name": "Booking Holdings"
+ },
+ {
+  "ticker": "AMT",
+  "name": "American Tower"
+ },
+ {
+  "ticker": "ELV",
+  "name": "Elevance Health"
+ },
+ {
+  "ticker": "MDT",
+  "name": "Medtronic"
+ },
+ {
+  "ticker": "DE",
+  "name": "Deere & Company"
+ },
+ {
+  "ticker": "SYK",
+  "name": "Stryker Corporation"
+ },
+ {
+  "ticker": "GILD",
+  "name": "Gilead Sciences"
+ },
+ {
+  "ticker": "ADI",
+  "name": "Analog Devices"
+ },
+ {
+  "ticker": "VRTX",
+  "name": "Vertex Pharmaceuticals"
+ },
+ {
+  "ticker": "LRCX",
+  "name": "Lam Research"
+ },
+ {
+  "ticker": "CI",
+  "name": "Cigna"
+ },
+ {
+  "ticker": "TJX",
+  "name": "TJX Companies"
+ },
+ {
+  "ticker": "ADP",
+  "name": "Automatic Data Processing"
+ },
+ {
+  "ticker": "MO",
+  "name": "Altria"
+ },
+ {
+  "ticker": "DUK",
+  "name": "Duke Energy"
+ },
+ {
+  "ticker": "SO",
+  "name": "Southern Company"
+ },
+ {
+  "ticker": "NEE",
+  "name": "NextEra Energy"
+ },
+ {
+  "ticker": "AON",
+  "name": "Aon plc"
+ },
+ {
+  "ticker": "DHR",
+  "name": "Danaher Corporation"
+ },
+ {
+  "ticker": "SCHW",
+  "name": "Charles Schwab Corporation"
+ },
+ {
+  "ticker": "AXP",
+  "name": "American Express"
+ },
+ {
+  "ticker": "BLK",
+  "name": "BlackRock"
+ },
+ {
+  "ticker": "CB",
+  "name": "Chubb Limited"
+ },
+ {
+  "ticker": "PGR",
+  "name": "Progressive Corporation"
+ },
+ {
+  "ticker": "MCO",
+  "name": "Moody's Corporation"
+ },
+ {
+  "ticker": "CME",
+  "name": "CME Group"
+ },
+ {
+  "ticker": "ICE",
+  "name": "Intercontinental Exchange"
+ },
+ {
+  "ticker": "ITW",
+  "name": "Illinois Tool Works"
+ },
+ {
+  "ticker": "ECL",
+  "name": "Ecolab"
+ },
+ {
+  "ticker": "SHW",
+  "name": "Sherwin-Williams"
+ },
+ {
+  "ticker": "APD",
+  "name": "Air Products"
+ },
+ {
+  "ticker": "NOC",
+  "name": "Northrop Grumman"
+ },
+ {
+  "ticker": "GD",
+  "name": "General Dynamics"
+ },
+ {
+  "ticker": "LMT",
+  "name": "Lockheed Martin"
+ },
+ {
+  "ticker": "RTX",
+  "name": "RTX Corporation"
+ },
+ {
+  "ticker": "BA",
+  "name": "Boeing"
+ },
+ {
+  "ticker": "HUM",
+  "name": "Humana"
+ },
+ {
+  "ticker": "CVS",
+  "name": "CVS Health"
+ },
+ {
+  "ticker": "ZTS",
+  "name": "Zoetis"
+ },
+ {
+  "ticker": "ISRG",
+  "name": "Intuitive Surgical"
+ },
+ {
+  "ticker": "BSX",
+  "name": "Boston Scientific"
+ },
+ {
+  "ticker": "REGN",
+  "name": "Regeneron Pharmaceuticals"
+ },
+ {
+  "ticker": "MU",
+  "name": "Micron Technology"
+ },
+ {
+  "ticker": "KLAC",
+  "name": "KLA Corporation"
+ }
+]

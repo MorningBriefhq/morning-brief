@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="/assets/img/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/assets/img/favicon-180.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Morning Brief">
+  <meta property="og:title" content="Your Profile — Morning Brief">
+  <meta property="og:description" content="Manage your Morning Brief profile and preferences.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Your Profile — Morning Brief">
+  <title>Your Profile — Morning Brief</title>
+  <meta name="description" content="Manage your Morning Brief profile and preferences.">
+  <script>
+    // Set the theme before first paint (avoids a light/dark flash).
+    // Saved choice wins; otherwise the OS preference; otherwise light.
+    // The profile load below upgrades this to the server-saved theme when
+    // the user never chose on this device.
+    (function () {
+      try {
+        var t = localStorage.getItem("mb_theme");
+        if (t !== "light" && t !== "dark") {
+          t =
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        }
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="/assets/css/main.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="wrap-narrow topbar-inner">
+      <a class="wordmark" href="/"><span class="wordmark-gold">&#9670;</span>Morning Brief</a>
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="topbar-nav" id="topbar-nav">
+        <a href="/" class="nav-cta">Home</a>
+        <a href="/markets.html" class="nav-cta">Markets</a>
+        <a href="/earnings.html" class="nav-cta">Earnings</a>
+        <a href="/archive.html" class="nav-cta">Archive</a>
+        <a href="/profile.html" class="nav-cta">Profile</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
+        <button class="btn btn-small btn-secondary" id="logout-btn" type="button">Log out</button>
+      </nav>
+    </div>
+  </header>
+  <div class="nav-scrim" id="nav-scrim"></div>
+
+  <main class="wrap-narrow">
+    <div id="loading" class="loading" style="padding: 3rem 0;">Loading your profile&hellip;</div>
+
+    <div id="profile-content" style="display:none;">
+      <section class="profile-head">
+        <h1 id="greeting"></h1>
+        <div class="profile-meta">
+          <span id="user-email"></span>
+          <span class="plan-badge" id="plan-badge"></span>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="name-heading">
+        <h2 id="name-heading">Your name</h2>
+        <div class="name-row" id="name-display">
+          <span class="current-name" id="current-name"></span>
+          <button class="btn btn-small btn-secondary" id="name-edit-btn" type="button">Edit</button>
+        </div>
+        <div class="name-edit" id="name-edit">
+          <input class="input" id="name-input" type="text" maxlength="50" aria-label="First name">
+          <button class="btn btn-small" id="name-save-btn" type="button">Save</button>
+          <button class="btn btn-small btn-secondary" id="name-cancel-btn" type="button">Cancel</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap-narrow">
+      <p class="disclaimer">For informational purposes only. Not investment advice.</p>
+      <small>&copy; 2026 Morning Brief. All rights reserved.</small>
+    </div>
+  </footer>
+
+  <script src="/assets/js/app.js"></script>
+  <script>
+    (function () {
+      "use strict";
+
+      // ---------- DOM ----------
+      var loadingEl = document.getElementById("loading");
+      var contentEl = document.getElementById("profile-content");
+      var greetingEl = document.getElementById("greeting");
+      var emailEl = document.getElementById("user-email");
+      var logoutBtn = document.getElementById("logout-btn");
+
+      var currentNameEl = document.getElementById("current-name");
+      var nameDisplayEl = document.getElementById("name-display");
+      var nameEditEl = document.getElementById("name-edit");
+      var nameInputEl = document.getElementById("name-input");
+      var nameEditBtn = document.getElementById("name-edit-btn");
+      var nameSaveBtn = document.getElementById("name-save-btn");
+      var nameCancelBtn = document.getElementById("name-cancel-btn");
+
+      // ---------- Greeting (America/New_York time) ----------
+      function etHour() {
+        try {
+          var parts = new Intl.DateTimeFormat("en-US", {
+            timeZone: "America/New_York",
+            hour: "numeric",
+            hour12: false,
+          }).formatToParts(new Date());
+          for (var i = 0; i < parts.length; i++) {
+            if (parts[i].type === "hour") {
+              return parseInt(parts[i].value, 10) % 24;
+            }
+          }
+        } catch (e) {}
+        return 12;
+      }
+
+      function greetingWord() {
+        var h = etHour();
+        if (h < 12) return "Good morning";
+        if (h < 17) return "Good afternoon";
+        return "Good evening";
+      }
+
+      function renderGreeting(firstName) {
+        greetingEl.textContent = greetingWord() + ", " + firstName;
+      }
+
+      // ---------- Profile ----------
+      function loadProfile() {
+        return MB.api("/api/me").then(function (me) {
+          if (!me) return;
+          emailEl.textContent = me.email;
+          currentNameEl.textContent = me.first_name;
+          renderGreeting(me.first_name);
+          if (!MB.theme.saved() && (me.theme === "light" || me.theme === "dark")) {
+            MB.theme.set(me.theme);
+          }
+        });
+      }
+
+      // ---------- Name editing ----------
+      nameEditBtn.addEventListener("click", function () {
+        nameInputEl.value = currentNameEl.textContent;
+        nameDisplayEl.style.display = "none";
+        nameEditEl.classList.add("show");
+        nameInputEl.focus();
+      });
+
+      nameCancelBtn.addEventListener("click", function () {
+        nameEditEl.classList.remove("show");
+        nameDisplayEl.style.display = "";
+      });
+
+      nameSaveBtn.addEventListener("click", function () {
+        var value = nameInputEl.value.trim();
+        if (!value) {
+          MB.toast("Please enter a name.", "error");
+          return;
+        }
+        if (value.length > 50) {
+          MB.toast("Name must be 50 characters or fewer.", "error");
+          return;
+        }
+        nameSaveBtn.disabled = true;
+        MB.api("/api/me", {
+          method: "PATCH",
+          body: JSON.stringify({ first_name: value }),
+        })
+          .then(function (res) {
+            if (!res) return;
+            currentNameEl.textContent = res.first_name;
+            renderGreeting(res.first_name);
+            nameEditEl.classList.remove("show");
+            nameDisplayEl.style.display = "";
+            MB.toast("Name updated.", "success");
+          })
+          .catch(function () {
+            MB.toast("Could not save your name. Try again.", "error");
+          })
+          .then(function () {
+            nameSaveBtn.disabled = false;
+          });
+      });
+
+      // ---------- Logout ----------
+      logoutBtn.addEventListener("click", function () {
+        MB.api("/api/auth/logout", { method: "POST" })
+          .then(function () { window.location.href = "/"; })
+          .catch(function () { window.location.href = "/"; });
+      });
+
+      // ---------- Boot ----------
+      MB.theme.initToggle(document.getElementById("theme-toggle"));
+      loadProfile()
+        .then(function () {
+          loadingEl.style.display = "none";
+          contentEl.style.display = "";
+        })
+        .catch(function () {
+          if (!loadingEl) return;
+          loadingEl.textContent = "Couldn't load your profile. Please refresh and try again.";
+        });
+    })();
+  </script>
+</body>
+</html>

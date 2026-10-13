@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/x-icon" href="/assets/img/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+    <link rel="apple-touch-icon" href="/assets/img/favicon-180.png">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Morning Brief">
+    <meta property="og:title" content="Morning Brief — The market news that matters, before the open.">
+    <meta property="og:description" content="A sharp, free daily market briefing. Indices, yields, commodities, earnings — no filler.">
+    <meta property="og:image" content="https://morningbrief.link/assets/img/og-image.jpg">
+    <meta property="og:image:width" content="2192">
+    <meta property="og:image:height" content="1152">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Morning Brief — The market news that matters, before the open.">
+    <meta name="twitter:description" content="A sharp, free daily market briefing. Indices, yields, commodities, earnings — no filler.">
+    <meta name="twitter:image" content="https://morningbrief.link/assets/img/og-image.jpg">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Morning Brief — The market, briefed every morning</title>
+  <meta name="description" content="A sharp morning news brief for investors. Top stories, futures, analyst moves, earnings — summarized before the open.">
+  <script>
+    // Set the theme before first paint (avoids a light/dark flash).
+    // Saved choice wins; otherwise the OS preference; otherwise light.
+    (function () {
+      try {
+        var t = localStorage.getItem("mb_theme");
+        if (t !== "light" && t !== "dark") {
+          t =
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        }
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="/assets/css/main.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="wordmark" href="/"><span class="wordmark-gold">&#9670;</span>Morning Brief</a>
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="topbar-nav" id="topbar-nav">
+        <a href="/" class="nav-cta">Home</a>
+        <a href="/markets.html" class="nav-cta">Markets</a>
+        <a href="/earnings.html" class="nav-cta">Earnings</a>
+        <a href="/archive.html" class="nav-cta">Archive</a>
+        <a href="/profile.html" class="nav-cta">Profile</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
+      </nav>
+    </div>
+  </header>
+  <div class="nav-scrim" id="nav-scrim"></div>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="wrap">
+        <div id="bad-link-alert" class="alert alert-error" style="display:none; margin-top:0; margin-bottom:2rem;" role="alert"></div>
+        <div class="hero-grid">
+          <div>
+            <p class="eyebrow">Daily &middot; Around 7 AM ET</p>
+            <h1>The market news that matters, before the open.</h1>
+            <p class="lede">
+              The day's market-moving stories, summarized before the bell. Every section packed with what matters.
+            </p>
+            <p class="signup-note"><a class="sample-link" href="/archive.html">Read today's edition</a></p>
+          </div>
+          <div>
+            <div class="signup-card" id="signup-card">
+              <h2>Get tomorrow's brief</h2>
+              <div id="signup-error" class="form-error" role="alert"></div>
+              <form id="signup-form" novalidate>
+                <div class="field">
+                  <label for="email">Email</label>
+                  <input class="input" type="email" id="email" name="email"
+                         autocomplete="email" inputmode="email" required>
+                </div>
+                <button class="btn signup-cta" type="submit" id="signup-btn">Sign up</button>
+              </form>
+              <div id="signup-success" class="form-success" role="status"></div>
+              <p class="friction">Free. One brief every morning. Unsubscribe anytime.</p>
+              <p class="archive-cta"><a href="/archive.html">Read today&rsquo;s edition &rarr;</a></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Market snapshot -->
+    <div class="market-strip" id="market-strip" style="display:none;">
+      <div class="wrap">
+        <div class="market-items" id="market-items"></div>
+      </div>
+    </div>
+
+    <!-- How it works -->
+    <section class="section" id="how-it-works">
+      <div class="wrap">
+        <p class="kicker">How It Works</p>
+        <h2>How it works</h2>
+        <div class="steps">
+          <div class="step">
+            <span class="step-num">1</span>
+            <h3>Sign up</h3>
+            <p>Enter your email. We send you a sign-in link &mdash; no password to remember, ever.</p>
+          </div>
+          <div class="step">
+            <span class="step-num">2</span>
+            <h3>Get the brief</h3>
+            <p>One sharp edition every morning — top news, futures, analyst moves, earnings.</p>
+          </div>
+          <div class="step">
+            <span class="step-num">3</span>
+            <h3>Read it before the open</h3>
+            <p>Arrives around 7 AM ET. As long as it needs to be — no filler, no fluff.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- The brief -->
+    <section class="section section-soft" id="the-brief">
+      <div class="wrap">
+        <p class="kicker">The Brief</p>
+        <h2>What's inside</h2>
+        <div class="section-list">
+          <div class="section-item"><strong>Before the Bell</strong><span>Futures, yields, oil, and the dollar — where the market stands.</span></div>
+          <div class="section-item"><strong>Top News</strong><span>The stories moving markets today, summarized.</span></div>
+          <div class="section-item"><strong>Stocks to Watch</strong><span>The names that matter this morning.</span></div>
+          <div class="section-item"><strong>Analyst Moves</strong><span>Upgrades, downgrades, and initiations from major firms.</span></div>
+          <div class="section-item"><strong>M&amp;A</strong><span>Deals announced, closed, and rumored.</span></div>
+          <div class="section-item"><strong>Calendar</strong><span>Today's earnings and economic events.</span></div>
+          <div class="section-item"><strong>Picture of the Day</strong><span>One image that captures the market mood.</span></div>
+        </div>
+        <div class="signup-card signup-card-wide" id="signup-card-2" style="margin-top: 2.5rem;">
+          <h2>Get tomorrow's brief</h2>
+          <div class="form-error" id="signup-error-2" role="alert"></div>
+          <form id="signup-form-2" novalidate>
+            <div class="field">
+              <label for="email-2">Email</label>
+              <input class="input" type="email" id="email-2" name="email"
+                     autocomplete="email" inputmode="email" required>
+            </div>
+            <button class="btn signup-cta" type="submit" id="signup-btn-2">Sign up</button>
+          </form>
+          <div class="form-success" id="signup-success-2" role="status"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How the brief is made -->
+    <section class="section" id="methodology">
+      <div class="wrap" style="max-width: 42rem;">
+        <p class="kicker">Methodology</p>
+        <h2>How it's built</h2>
+        <p class="section-lede">
+          Built overnight from major newswires and financial data. Filtered for what moves markets, summarized per story.
+        </p>
+      </div>
+    </section>
+
+    <!-- Explore -->
+    <section class="section section-soft" id="explore">
+      <div class="wrap" style="max-width: 42rem; text-align: center;">
+        <p class="kicker">Explore</p>
+        
+        <p class="section-lede" style="margin-bottom: 1.75rem;">
+          Live market data and this week's earnings calendar.
+        </p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+          <a href="/markets.html" class="btn btn-secondary" style="min-width: 11rem;">Markets &rarr;</a>
+          <a href="/earnings.html" class="btn btn-secondary" style="min-width: 11rem;">Earnings &rarr;</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <a class="wordmark" href="/"><span class="wordmark-gold">&#9670;</span>Morning Brief</a>
+      <p class="disclaimer" style="margin-top:1.25em;">
+        For informational purposes only. Not investment advice.
+      </p>
+      <p style="margin-top:0.75em;"><a class="sample-link" href="/archive.html">Archive</a></p>
+      <small>&copy; 2026 Morning Brief. All rights reserved.</small>
+    </div>
+  </footer>
+
+  <script src="/assets/js/app.js"></script>
+  <script>
+    (function () {
+      "use strict";
+
+      MB.theme.initToggle(document.getElementById("theme-toggle"));
+
+      // ?error=bad_link -> show the invalid/expired link message.
+      var params = new URLSearchParams(window.location.search);
+      if (params.get("error") === "bad_link") {
+        var alertBox = document.getElementById("bad-link-alert");
+        alertBox.textContent =
+          "That sign-in link was invalid or expired. Request a new one.";
+        alertBox.style.display = "block";
+      }
+
+      var form = document.getElementById("signup-form");
+      var btn = document.getElementById("signup-btn");
+      var errBox = document.getElementById("signup-error");
+      var successBox = document.getElementById("signup-success");
+
+      function showError(msg) {
+        errBox.textContent = msg;
+        errBox.classList.add("show");
+        successBox.classList.remove("show");
+      }
+
+      function showSuccess(msg) {
+        successBox.textContent = msg;
+        successBox.classList.add("show");
+        errBox.classList.remove("show");
+      }
+
+      var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+
+        var email = document.getElementById("email").value.trim().toLowerCase();
+
+        if (!EMAIL_RE.test(email)) {
+          showError("Please enter a valid email address.");
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = "Sending\u2026";
+
+        MB.api("/api/auth/request-link", {
+          method: "POST",
+          body: JSON.stringify({ email: email }),
+        })
+          .then(function () {
+            form.style.display = "none";
+            showSuccess("Check your inbox for your sign-in link. Your first brief arrives tomorrow at 7 AM ET \u2014 add briefing@morningbrief.link to your contacts so it doesn't land in spam.");
+          })
+          .catch(function (err) {
+            showError(
+              "Something went wrong sending your link. Please try again." +
+                (err && err.status ? " (" + err.status + ")" : "")
+            );
+          })
+          .then(function () {
+            btn.disabled = false;
+            btn.textContent = "Sign up";
+          });
+      });
+
+      // Second signup form (after sample brief)
+      (function () {
+        var form2 = document.getElementById("signup-form-2");
+        if (!form2) return;
+        var btn2 = document.getElementById("signup-btn-2");
+        var err2 = document.getElementById("signup-error-2");
+        var ok2 = document.getElementById("signup-success-2");
+        form2.addEventListener("submit", function (e) {
+          e.preventDefault();
+          var email = document.getElementById("email-2").value.trim().toLowerCase();
+          if (!EMAIL_RE.test(email)) {
+            err2.textContent = "Please enter a valid email address.";
+            err2.classList.add("show");
+            return;
+          }
+          btn2.disabled = true;
+          btn2.textContent = "Sending\u2026";
+          MB.api("/api/auth/request-link", {
+            method: "POST",
+            body: JSON.stringify({ email: email }),
+          })
+            .then(function () {
+              form2.style.display = "none";
+              ok2.textContent = "Check your inbox for your sign-in link. Your first brief arrives tomorrow at 7 AM ET.";
+              ok2.classList.add("show");
+            })
+            .catch(function () {
+              err2.textContent = "Something went wrong. Please try again.";
+              err2.classList.add("show");
+            })
+            .then(function () {
+              btn2.disabled = false;
+              btn2.textContent = "Sign up";
+            });
+        });
+      })();
+
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/x-icon" href="/assets/img/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+    <link rel="apple-touch-icon" href="/assets/img/favicon-180.png">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Morning Brief">
+    <meta property="og:title" content="Morning Brief — The market news that matters, before the open.">
+    <meta property="og:description" content="A sharp, free daily market briefing. Indices, yields, commodities, earnings — no filler.">
+    <meta property="og:image" content="https://morningbrief.link/assets/img/og-image.jpg">
+    <meta property="og:image:width" content="2192">
+    <meta property="og:image:height" content="1152">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Morning Brief — The market news that matters, before the open.">
+    <meta name="twitter:description" content="A sharp, free daily market briefing. Indices, yields, commodities, earnings — no filler.">
+    <meta name="twitter:image" content="https://morningbrief.link/assets/img/og-image.jpg">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Markets — Morning Brief</title>
+  <meta name="description" content="Live market snapshot: indices, Treasury yields, commodities, currencies, global markets.">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("mb_theme");
+        if (t !== "light" && t !== "dark") {
+          t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) { document.documentElement.setAttribute("data-theme", "light"); }
+    })();
+  </script>
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <style>
+    .snapshot-line { font-size: 1.05rem; font-weight: 600; margin: 0.5rem 0 1.5rem; font-variant-numeric: tabular-nums; line-height: 1.5; }
+    .snapshot-line .pos { color: #1a7a3a; }
+    .snapshot-line .neg { color: #b3261e; }
+    [data-theme="dark"] .snapshot-line .pos { color: #4caf6d; }
+    [data-theme="dark"] .snapshot-line .neg { color: #e57373; }
+    .snapshot-sub { font-size: 0.8rem; color: var(--muted); font-weight: 400; }
+
+    .mkt-section-row td { padding: 1.25rem 0.5rem 0.25rem; border: none; }
+    .mkt-section-row:first-child td { padding-top: 0; }
+    .mkt-section-row h3 { font-size: 0.72rem; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin: 0; font-weight: 600; }
+    .mkt-table { width: 100%; border-collapse: collapse; }
+    .mkt-table td { padding: 0.65rem 0.5rem; border-bottom: 1px solid var(--hairline); font-variant-numeric: tabular-nums; vertical-align: middle; }
+    .mkt-table tr:last-child td { border-bottom: none; }
+    .mkt-name { font-weight: 500; white-space: nowrap; }
+    .mkt-price { text-align: right; font-weight: 600; white-space: nowrap; }
+    .mkt-chg { text-align: right; white-space: nowrap; font-size: 0.9rem; }
+    .mkt-chg.up { color: #1a7a3a; }
+    .mkt-chg.down { color: #b3261e; }
+    [data-theme="dark"] .mkt-chg.up { color: #4caf6d; }
+    [data-theme="dark"] .mkt-chg.down { color: #e57373; }
+    .mkt-spark { width: 64px; }
+    .mkt-spark svg { display: block; width: 60px; height: 22px; }
+    .mkt-foot { font-size: 0.78rem; color: var(--muted); margin-top: 1.5rem; line-height: 1.6; }
+
+    @media (max-width: 420px) {
+      .mkt-abs { display: none; } /* price + % only on very narrow screens */
+      .mkt-spark { width: 48px; }
+      .mkt-spark svg { width: 44px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="wordmark" href="/"><span class="wordmark-gold">&#9670;</span>Morning Brief</a>
+      <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="topbar-nav" id="topbar-nav">
+        <a href="/" class="nav-cta">Home</a>
+        <a href="/markets.html" class="nav-cta">Markets</a>
+        <a href="/earnings.html" class="nav-cta">Earnings</a>
+        <a href="/archive.html" class="nav-cta">Archive</a>
+        <a href="/profile.html" class="nav-cta">Profile</a>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
+      </nav>
+    </div>
+  </header>
+  <div class="nav-scrim" id="nav-scrim"></div>
+
+  <main>
+    <section class="section" style="padding-top: 1.5rem;">
+      <div class="wrap" style="max-width: 38rem;">
+        <p class="snapshot-line" id="snapshot-line">Loading markets&hellip;</p>
+        <div id="market-sections"></div>
+        <p class="mkt-foot" id="market-foot"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <a class="wordmark" href="/"><span class="wordmark-gold">&#9670;</span>Morning Brief</a>
+      <p class="disclaimer" style="margin-top:1.25em;">
+        For informational purposes only. Not investment advice.
+      </p>
+      <small>&copy; 2026 Morning Brief. All rights reserved.</small>
+    </div>
+  </footer>
+
+  <script src="/assets/js/app.js"></script>
+  <script>
+    (function () {
+      "use strict";
+      MB.theme.initToggle(document.getElementById("theme-toggle"));
+
+      var SECTION_ORDER = [
+        ["indices", "US Indices"],
+        ["rates", "Treasury Yields"],
+        ["commodities", "Commodities"],
+        ["currencies", "Currencies"],
+        ["global", "Global"],
+      ];
+
+      function fmtPrice(p, isYield) {
+        if (p == null) return "—";
+        if (isYield) return p.toFixed(2) + "%";
+        return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+      function fmtChg(it) {
+        if (it.is_yield) {
+          var bp = it.bp_change != null ? it.bp_change : 0;
+          var sign = bp >= 0 ? "+" : "";
+          return sign + bp + " bp";
+        }
+        if (it.change_pct == null) return "—";
+        var sign = it.change_pct >= 0 ? "+" : "";
+        var absStr = it.abs_change != null
+          ? sign + Math.abs(it.abs_change).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : "";
+        return { abs: absStr, pct: "(" + sign + it.change_pct.toFixed(2) + "%)" };
+      }
+      function sparklineSVG(points, up) {
+        if (!points || points.length < 2) return "";
+        var w = 60, h = 22, pad = 2;
+        var min = Math.min.apply(null, points);
+        var max = Math.max.apply(null, points);
+        var range = max - min || 1;
+        var stepX = (w - pad * 2) / (points.length - 1);
+        var path = points.map(function (p, i) {
+          var x = (pad + i * stepX).toFixed(1);
+          var y = (pad + (1 - (p - min) / range) * (h - pad * 2)).toFixed(1);
+          return (i === 0 ? "M" : "L") + x + " " + y;
+        }).join(" ");
+        var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+        var color = up ? (isDark ? "#4caf6d" : "#1a7a3a") : (isDark ? "#e57373" : "#b3261e");
+        return '<svg viewBox="0 0 60 22" aria-hidden="true"><path d="' + path +
+          '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+      }
+      function sessionLabel(date) {
+        // US Eastern time
+        var et = new Date(date.toLocaleString("en-US", { timeZone: "America/New_York" }));
+        var mins = et.getHours() * 60 + et.getMinutes();
+        var day = et.getDay();
+        if (day === 0 || day === 6) return "Markets closed — weekend";
+        if (mins >= 240 && mins < 570) return "Premarket";       // 4:00–9:30 AM ET
+        if (mins >= 570 && mins < 960) return "Market open";     // 9:30 AM–4:00 PM ET
+        if (mins >= 960 && mins < 1200) return "After hours";    // 4:00–8:00 PM ET
+        return "Markets closed";
+      }
+
+      fetch("/api/market-live")
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          var container = document.getElementById("market-sections");
+          if (!d || !d.items || !d.items.length) {
+            document.getElementById("snapshot-line").textContent = "Market data unavailable.";
+            return;
+          }
+          var items = d.items;
+          var now = new Date(d.as_of);
+          var session = sessionLabel(now);
+
+          // Snapshot line: S&P direction, 10Y yield, VIX
+          var sp = items.find(function (i) { return i.label === "S&P 500"; });
+          var tnx = items.find(function (i) { return i.key === "TNX"; });
+          var vix = items.find(function (i) { return i.label === "VIX"; });
+          var snapParts = [];
+          if (sp) {
+            var cls = sp.change_pct >= 0 ? "pos" : "neg";
+            var sgn = sp.change_pct >= 0 ? "+" : "";
+            snapParts.push('<span class="' + cls + '">S&P ' + sgn + sp.change_pct.toFixed(2) + '%</span>');
+          }
+          if (tnx && tnx.price != null) snapParts.push("10Y " + tnx.price.toFixed(2) + "%");
+          if (vix && vix.price != null) snapParts.push("VIX " + vix.price.toFixed(1));
+          document.getElementById("snapshot-line").innerHTML =
+            snapParts.join(" &middot; ") +
+            ' <span class="snapshot-sub">— ' + session.toLowerCase() + ", " +
+            now.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }) + " ET</span>";
+
+          // Grouped tables — single table so columns align across sections
+          var html = '<table class="mkt-table"><tbody>';
+          SECTION_ORDER.forEach(function (sec) {
+            var rows = items.filter(function (i) { return i.category === sec[0]; });
+            if (!rows.length) return;
+            html += '<tr class="mkt-section-row"><td colspan="4"><h3>' + sec[1] + "</h3></td></tr>";
+            rows.forEach(function (it) {
+              var cls = it.up ? "up" : "down";
+              var chg = fmtChg(it);
+              var chgHtml = it.is_yield
+                ? chg
+                : '<span class="mkt-abs">' + chg.abs + " </span>" + chg.pct;
+              var spark = (d.sparklines && d.sparklines[it.key]) || null;
+              html += "<tr>" +
+                '<td class="mkt-name">' + it.label + "</td>" +
+                '<td class="mkt-spark">' + sparklineSVG(spark, it.up) + "</td>" +
+                '<td class="mkt-price">' + fmtPrice(it.price, it.is_yield) + "</td>" +
+                '<td class="mkt-chg ' + cls + '">' + chgHtml + "</td></tr>";
+            });
+          });
+          html += "</tbody></table>";
+          container.innerHTML = html;
+
+          document.getElementById("market-foot").textContent =
+            "Data: Yahoo Finance. For informational purposes only. Not investment advice.";
+        })
+        .catch(function () {
+          document.getElementById("snapshot-line").textContent = "Could not load market data.";
+        });
+    })();
+  </script>
+</body>
+</html>
