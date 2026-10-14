@@ -18,7 +18,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="data:,">
-  <title>Morning Brief — The market, briefed every morning</title>
+  <title>Morning Brief — The market news that matters, before the open.</title>
   <meta name="description" content="A sharp morning news brief for investors. Top stories, futures, analyst moves, earnings — summarized before the open.">
   <script>
     // Set the theme before first paint (avoids a light/dark flash).
@@ -71,9 +71,9 @@
             <p class="eyebrow">Daily &middot; Around 7 AM ET</p>
             <h1>The market news that matters, before the open.</h1>
             <p class="lede">
-              The day's market-moving stories, summarized before the bell. Every section packed with what matters.
+              S&P 500 scope. Real futures and yields data. Corporate news, not analyst noise. One email, around 7 AM ET — as long as it needs to be.
             </p>
-            <p class="signup-note"><a class="sample-link" href="/archive.html">Read today's edition</a></p>
+            <p style="margin-top: 1.5rem;"><a class="btn btn-secondary" href="/archive.html">Read today's edition</a></p>
           </div>
           <div>
             <div class="signup-card" id="signup-card">
@@ -89,7 +89,6 @@
               </form>
               <div id="signup-success" class="form-success" role="status"></div>
               <p class="friction">Free. One brief every morning. Unsubscribe anytime.</p>
-              <p class="archive-cta"><a href="/archive.html">Read today&rsquo;s edition &rarr;</a></p>
             </div>
           </div>
         </div>
@@ -102,31 +101,6 @@
         <div class="market-items" id="market-items"></div>
       </div>
     </div>
-
-    <!-- How it works -->
-    <section class="section" id="how-it-works">
-      <div class="wrap">
-        <p class="kicker">How It Works</p>
-        <h2>How it works</h2>
-        <div class="steps">
-          <div class="step">
-            <span class="step-num">1</span>
-            <h3>Sign up</h3>
-            <p>Enter your email. We send you a sign-in link &mdash; no password to remember, ever.</p>
-          </div>
-          <div class="step">
-            <span class="step-num">2</span>
-            <h3>Get the brief</h3>
-            <p>One sharp edition every morning — top news, futures, analyst moves, earnings.</p>
-          </div>
-          <div class="step">
-            <span class="step-num">3</span>
-            <h3>Read it before the open</h3>
-            <p>Arrives around 7 AM ET. As long as it needs to be — no filler, no fluff.</p>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- The brief -->
     <section class="section section-soft" id="the-brief">
@@ -164,25 +138,11 @@
         <p class="kicker">Methodology</p>
         <h2>How it's built</h2>
         <p class="section-lede">
-          Built overnight from major newswires and financial data. Filtered for what moves markets, summarized per story.
+          Every edition is assembled overnight from pooled newswires and market data — Marketaux, The Guardian, Financial Modeling Prep, Nasdaq Data Link, Alpaca — then synthesized in our own voice. No single-source regurgitation. No analyst-note filler. If a story doesn't move markets, it doesn't make the brief.
         </p>
       </div>
     </section>
 
-    <!-- Explore -->
-    <section class="section section-soft" id="explore">
-      <div class="wrap" style="max-width: 42rem; text-align: center;">
-        <p class="kicker">Explore</p>
-        
-        <p class="section-lede" style="margin-bottom: 1.75rem;">
-          Live market data and this week's earnings calendar.
-        </p>
-        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-          <a href="/markets.html" class="btn btn-secondary" style="min-width: 11rem;">Markets &rarr;</a>
-          <a href="/earnings.html" class="btn btn-secondary" style="min-width: 11rem;">Earnings &rarr;</a>
-        </div>
-      </div>
-    </section>
   </main>
 
   <footer class="footer">
@@ -191,7 +151,7 @@
       <p class="disclaimer" style="margin-top:1.25em;">
         For informational purposes only. Not investment advice.
       </p>
-      <p style="margin-top:0.75em;"><a class="sample-link" href="/archive.html">Archive</a></p>
+      <p style="margin-top:0.75em;"><a class="sample-link" href="/archive.html">Archive</a> &middot; <a class="sample-link" href="/markets.html">Markets</a> &middot; <a class="sample-link" href="/earnings.html">Earnings</a></p>
       <small>&copy; 2026 Morning Brief. All rights reserved.</small>
     </div>
   </footer>
@@ -287,7 +247,7 @@
           })
             .then(function () {
               form2.style.display = "none";
-              ok2.textContent = "Check your inbox for your sign-in link. Your first brief arrives tomorrow at 7 AM ET.";
+              ok2.textContent = "Check your inbox for your sign-in link. Your first brief arrives tomorrow at 7 AM ET \u2014 add briefing@morningbrief.link to your contacts so it doesn't land in spam.";
               ok2.classList.add("show");
             })
             .catch(function () {

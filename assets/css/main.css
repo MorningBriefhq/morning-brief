@@ -372,12 +372,6 @@ a {
   margin: 0.9em 0 0;
 }
 
-.signup-note {
-  margin-top: 1.25rem;
-  font-size: 0.85rem;
-  color: #aeb9c4;
-}
-
 /* ---------- Sections (landing) ---------- */
 
 .section {
@@ -407,43 +401,6 @@ a {
   font-weight: 600;
 }
 
-.steps {
-  display: grid;
-  gap: 1.25rem;
-  margin-top: 2rem;
-}
-
-.step {
-  background: var(--paper);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-}
-
-.step-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  background: var(--navy);
-  color: var(--paper);
-  font-size: 0.9rem;
-  font-weight: 700;
-  margin-bottom: 0.75em;
-}
-
-.step h3 {
-  font-size: 1.15rem;
-  margin-bottom: 0.4em;
-}
-
-.step p {
-  color: var(--muted);
-  font-size: 0.95rem;
-  margin: 0;
-}
 
 /* "What you get" — brief format preview */
 
@@ -840,10 +797,6 @@ a {
     align-items: start;
   }
 
-  .steps {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
   .profile-head h1 {
     font-size: 2.3rem;
   }
@@ -855,102 +808,6 @@ a {
   }
 }
 
-/* Sample brief mock — a visual preview of the email readers receive. */
-.sample-label {
-  font-size: 0.8rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 1rem;
-}
-.email-mock {
-  max-width: 620px;
-  margin: 0 auto;
-  background: #ffffff;
-  border: 1px solid var(--hairline);
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 12px 32px rgba(8, 20, 38, 0.12);
-  text-align: left;
-  color: #101418;
-}
-.email-mock-top {
-  background: #0e2a47;
-  color: #ffffff;
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-}
-.email-mock-brand {
-  font-family: var(--serif);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-.email-mock-brand .wordmark-gold {
-  color: var(--gold);
-  margin-right: 0.4em;
-}
-.email-mock-date {
-  font-size: 0.8rem;
-  color: #c9d4e0;
-}
-.email-mock-greet {
-  font-family: var(--serif);
-  font-size: 1.15rem;
-  padding: 1.25rem 1.5rem 0;
-  margin: 0;
-}
-.email-mock-section {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid #eef1f4;
-}
-.email-mock-section:first-of-type {
-  border-top: none;
-}
-.email-mock-section h4 {
-  font-size: 0.72rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #b8892e;
-  margin: 0 0 0.7em;
-}
-.email-mock-headline {
-  font-weight: 700;
-  margin: 0 0 0.2em;
-  font-size: 0.95rem;
-}
-.email-mock-summary {
-  color: #5b6570;
-  font-size: 0.88rem;
-  margin: 0 0 1em;
-}
-.email-mock-summary:last-child {
-  margin-bottom: 0;
-}
-.email-mock-data {
-  display: flex;
-  justify-content: space-between;
-  margin: 0 0 0.35em;
-  font-size: 0.92rem;
-}
-.email-mock-data .up { color: #1a7a3a; font-weight: 600; }
-.email-mock-data .down { color: #b3261e; font-weight: 600; }
-.email-mock-ticker {
-  font-size: 0.92rem;
-  margin: 0 0 0.6em;
-}
-.email-mock-ticker:last-child {
-  margin-bottom: 0;
-}
-.email-mock-cal {
-  font-size: 0.92rem;
-  margin: 0 0 0.35em;
-}
-.email-mock-cal:last-child {
-  margin-bottom: 0;
-}
 .sample-link {
   color: var(--gold-deep);
   font-weight: 600;
@@ -1010,6 +867,12 @@ a {
 .market-item .m-chg.down { color: #b3261e; }
 [data-theme="dark"] .market-item .m-chg.up { color: #4caf7d; }
 [data-theme="dark"] .market-item .m-chg.down { color: #e57373; }
+.market-ts {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  align-self: center;
+}
 
 /* ---------- Nav: inline links (desktop) + hamburger (mobile) ---------- */
 .nav-toggle {
@@ -1149,25 +1012,6 @@ a {
   text-align: center;
   margin: 0.75rem 0 0;
 }
-.archive-cta {
-  text-align: center;
-  margin: 1rem 0 0;
-  padding-top: 1rem;
-  border-top: 1px solid var(--hairline);
-  font-size: 0.9rem;
-}
-.archive-cta a {
-  color: var(--navy);
-  font-weight: 600;
-  text-decoration: none;
-}
-.archive-cta a:hover {
-  text-decoration: underline;
-}
-[data-theme="dark"] .archive-cta a {
-  color: var(--gold);
-}
-
 /* Minimal nav CTA */
 .nav-cta {
   font-weight: 600 !important;

@@ -200,6 +200,13 @@
         container.appendChild(div);
       });
       strip.style.display = "";
+      // "As of" timestamp — live data without a timestamp reads as possibly stale.
+      if (d.as_of) {
+        var ts = document.createElement("div");
+        ts.className = "market-ts";
+        ts.textContent = "as of " + d.as_of + " ET";
+        container.appendChild(ts);
+      }
     })
     .catch(function () {});
 })();
