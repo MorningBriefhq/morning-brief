@@ -30,11 +30,13 @@ function buildProviders(env) {
   const summarizer = env.AI
     ? new WorkersAISummarizer(env.AI, env.WORKERS_AI_MODEL || "@cf/meta/llama-3.1-8b-instruct")
     : new MockSummarizer();
-  const market = new FinnhubMarketProvider({
-    finnhubKey: env.FINNHUB_API_KEY,
-    fmpKey: env.FMP_API_KEY,
-    fredKey: env.FRED_API_KEY,
-  });
+  const market = new FinnhubMarketProvider(
+    env.FINNHUB_API_KEY,
+    env.FMP_API_KEY,
+    [],
+    env.UNSPLASH_ACCESS_KEY,
+    env.FRED_API_KEY
+  );
   const sender = env.RESEND_API_KEY
     ? new ResendSender(env.RESEND_API_KEY, env.BRIEFING_FROM || "briefing@morningbrief.link")
     : null;
