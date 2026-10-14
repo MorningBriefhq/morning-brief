@@ -192,54 +192,93 @@ export class FinnhubMarketProvider {
    *
    *  Tries Finnhub index symbols (^GSPC, ^IXIC, ^DJI, ^VIX) — if the key
    *  supports them we get real index values per Pat's no-ETF-proxies rule.
+   *  Then Alpha Vantage GLOBAL_QUOTE (free tier returns {} for indices, so
+   *  this fails fast; kept as a slot that works if AV ever supports them).
    *  Falls back to SPY/QQQ/DIA when index quotes return no data.
    *  Macro series (Treasury, oil, gold, dollar) stay as-is.
    */
   async beforeBell(_runDate) {
+    // Lazy import to avoid a hard dependency at module load.
+    let fetchIndexQuoteAV = null;
+    if (this.avKey) {
+      try {
+        ({ fetchIndexQuoteAV } = await import("./alphavantage.js"));
+      } catch (e) {
+        console.error("[market] beforeBell: could not load alphavantage module:", e.message);
+      }
+    }
     try {
-      // [index-symbol candidates, ETF fallback, label]
+      // [finnhubIndexSym, avIndexSym, etfFallback, label]
       const symbols = [
-        [["^GSPC", "SPY"], "S&P 500"],
-        [["^IXIC", "QQQ"], "Nasdaq 100"],
-        [["^DJI", "DIA"], "Dow"],
-        [["^VIX", null], "VIX"],
-        [[null, "TLT"], "20-Yr Treasury"],
-        [[null, "USO"], "WTI Crude"],
-        [[null, "GLD"], "Gold"],
-        [[null, "UUP"], "US Dollar"],
-        [[null, "EFA"], "Europe"],
-        [[null, "EWJ"], "Japan"],
+        ["^GSPC", "SPX", "SPY", "S&P 500"],
+        ["^IXIC", "NDX", "QQQ", "Nasdaq 100"],
+        ["^DJI", "DJI", "DIA", "Dow"],
+        ["^VIX", null, null, "VIX"],
+        [null, null, "TLT", "20-Yr Treasury"],
+        [null, null, "USO", "WTI Crude"],
+        [null, null, "GLD", "Gold"],
+        [null, null, "UUP", "US Dollar"],
+        [null, null, "EFA", "Europe"],
+        [null, null, "EWJ", "Japan"],
       ];
       const quotes = [];
       const usedSymbols = [];
-      for (const [[indexSym, etfSym], label] of symbols) {
+      for (const [indexSym, avSym, etfSym, label] of symbols) {
         let q = null;
         let used = null;
-        // Try real index symbol first, then ETF fallback
-        for (const sym of [indexSym, etfSym]) {
-          if (!sym) continue;
+        // 1. Finnhub real index symbol
+        if (indexSym) {
           for (let attempt = 0; attempt < 3; attempt++) {
             try {
-              q = await this._get(`/quote?symbol=${encodeURIComponent(sym)}`);
+              q = await this._get(`/quote?symbol=${encodeURIComponent(indexSym)}`);
               if (q && q.c != null && q.c !== 0) {
-                used = sym;
+                used = indexSym;
                 break;
               }
               q = null;
             } catch (e) {
-              if (attempt === 2) console.error(`[market] beforeBell ${sym} failed:`, e.message);
+              if (attempt === 2) console.error(`[market] beforeBell ${indexSym} failed:`, e.message);
               await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
             }
           }
-          if (q) break;
+          // Small delay to avoid rate limits
+          await new Promise((r) => setTimeout(r, 500));
         }
-        if (used && used !== etfSym && indexSym) {
+        // 2. Alpha Vantage index quote (free tier: fails fast with {}, cached)
+        if (!q && avSym && fetchIndexQuoteAV && this.avKey) {
+          try {
+            const avq = await fetchIndexQuoteAV(this.avKey, avSym);
+            if (avq && avq.price) {
+              q = { c: avq.price, dp: avq.changePct };
+              used = `AV:${avSym}`;
+              console.log(`[market] beforeBell ${label}: using Alpha Vantage index quote ${avSym}`);
+            }
+          } catch (e) {
+            console.error(`[market] beforeBell AV ${avSym}:`, e.message);
+          }
+        }
+        // 3. ETF fallback
+        if (!q && etfSym) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              q = await this._get(`/quote?symbol=${encodeURIComponent(etfSym)}`);
+              if (q && q.c != null && q.c !== 0) {
+                used = etfSym;
+                break;
+              }
+              q = null;
+            } catch (e) {
+              if (attempt === 2) console.error(`[market] beforeBell ${etfSym} failed:`, e.message);
+              await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+            }
+          }
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        if (used && used !== etfSym && (indexSym || avSym)) {
           console.log(`[market] beforeBell ${label}: using real index symbol ${used}`);
         }
         quotes.push(q);
         usedSymbols.push(used);
-        // Small delay to avoid rate limits
-        await new Promise((r) => setTimeout(r, 500));
       }
       const fmt = (q, label) => {
         if (!q || q.c == null) return null;
@@ -247,7 +286,7 @@ export class FinnhubMarketProvider {
         return { label, text: `${chg} pre-market` };
       };
       return symbols
-        .map(([[,], label], i) => fmt(quotes[i], label))
+        .map(([, , , label], i) => fmt(quotes[i], label))
         .filter(Boolean);
     } catch (e) {
       console.error("[market] beforeBell:", e.message);

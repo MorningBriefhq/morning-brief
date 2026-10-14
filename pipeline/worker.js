@@ -48,6 +48,7 @@ const EXPECTED_SECRETS = [
   ["ADMIN_KEY",          "critical", "/admin/status auth"],
   ["UNSPLASH_ACCESS_KEY","degraded", "picture-of-the-day images"],
   ["FRED_API_KEY",       "degraded", "treasury yield data"],
+  ["ALPHA_VANTAGE_API_KEY", "degraded", "Alpha Vantage (earnings calendar fallback, news sentiment)"],
   ["BRIEFING_FROM",      "optional", "sender address (default: briefing@morningbrief.link)"],
   ["PRODUCT_NAME",       "optional", "product name (default: Morning Brief)"],
   ["PUBLIC_ORIGIN",      "optional", "site URL (default: https://morningbrief.link)"],
@@ -86,7 +87,7 @@ function validateEnv(env) {
 // ---------------------------------------------------------------------------
 // Constructor signatures (audited 2026-10-14):
 //   FinnhubMarketProvider(apiKey, fmpKey, sp500list, unsplashKey, fredKey)
-//   MultiSourceNewsProvider({ marketauxKey, guardianKey, finnhubProvider })
+//   MultiSourceNewsProvider({ marketauxKey, guardianKey, finnhubProvider, alphavantageKey })
 //   WorkersAISummarizer(aiBinding, model)
 //   MockSummarizer()
 //   ResendSender(apiKey, from)
@@ -100,10 +101,14 @@ function buildProviders(env) {
     env.UNSPLASH_ACCESS_KEY || null,
     env.FRED_API_KEY || null
   );
+  // Alpha Vantage key attached for index-quote fallback in beforeBell().
+  // (Not a constructor param — the constructor signature is audited/locked.)
+  market.avKey = env.ALPHA_VANTAGE_API_KEY || null;
   const news = new MultiSourceNewsProvider({
     marketauxKey: env.MARKETAUX_API_KEY || null,
     guardianKey: env.GUARDIAN_API_KEY || null,
     finnhubProvider: market,
+    alphavantageKey: env.ALPHA_VANTAGE_API_KEY || null,
   });
   const summarizer = env.AI
     ? new WorkersAISummarizer(env.AI, env.WORKERS_AI_MODEL || "@cf/meta/llama-3.1-8b-instruct")
@@ -131,7 +136,7 @@ async function runMarketStage(env, runDate) {
   const db = env.DB;
   const { news, summarizer, market } = buildProviders(env);
   return runStage(db, runDate, "market", async () => {
-    return runMarket({ db, market, news, runDate, nowSec, summarizer });
+    return runMarket({ db, market, news, runDate, nowSec, summarizer, alphavantageKey: env.ALPHA_VANTAGE_API_KEY || null });
   }, nowSec);
 }
 

@@ -14,6 +14,7 @@ import { renderTemplate } from "./lib/render.js";
 import { truncateWords } from "./lib/summarize.js";
 import { fetchEconCalendar } from "./lib/econ.js";
 import { fetchRecent8Ks } from "./lib/edgar.js";
+import { fetchEarningsCalendarAV } from "./lib/alphavantage.js";
 
 /** Error thrown when the quality gate blocks a send.
  *  Distinct from a crash: the pipeline worked, but the data isn't good enough to ship.
@@ -37,13 +38,13 @@ function extractiveSummary(story, maxWords = 150) {
 }
 
 /**
- * Build the calendar section: earnings from Finnhub/FMP, econ from FXMacroData.
+ * Build the calendar section: earnings from Finnhub/Alpha Vantage, econ from FXMacroData.
  *
- * Finnhub's /calendar/econ returned empty on 2026-10-14, so FXMacroData
- * (free, no key, official release calendars) is the primary econ source.
- * Finnhub econ is kept as a supplement when it has data.
+ * Earnings priority: Finnhub first, then Alpha Vantage EARNINGS_CALENDAR (free CSV,
+ * verified working). Finnhub's /calendar/earnings returned empty on 2026-10-14.
+ * Econ: FXMacroData (free, no key) is primary; Finnhub econ kept as supplement.
  */
-async function buildCalendar(market, runDate) {
+async function buildCalendar(market, runDate, alphavantageKey = null) {
   const out = { earnings: [], econ: [] };
   try {
     const cal = await market.calendar(runDate);
@@ -54,6 +55,18 @@ async function buildCalendar(market, runDate) {
     }
   } catch (e) {
     console.error("[market] calendar (finnhub):", e.message);
+  }
+  // Alpha Vantage earnings fallback — fills the gap when Finnhub is empty.
+  // Filtered to S&P 500, includes EPS estimates.
+  if (out.earnings.length === 0 && alphavantageKey) {
+    try {
+      const av = await fetchEarningsCalendarAV(alphavantageKey, market.sp500, runDate);
+      out.earnings = av.map(({ ticker, company, time, estimate }) => ({
+        ticker, company, time, estimate,
+      }));
+    } catch (e) {
+      console.error("[market] calendar (alphavantage):", e.message);
+    }
   }
   // FXMacroData primary for econ — fills the gap when Finnhub is empty
   if (out.econ.length === 0) {
@@ -70,7 +83,7 @@ async function buildCalendar(market, runDate) {
   return out;
 }
 
-export async function runMarket({ db, market, news, runDate, nowSec, summarizer = null }) {
+export async function runMarket({ db, market, news, runDate, nowSec, summarizer = null, alphavantageKey = null }) {
   // Use the multi-source news provider (Marketaux + Guardian + RSS) for Top News.
   // Falls back to market.topNews (Finnhub) if no news provider.
   let userTickers = [];
@@ -121,7 +134,7 @@ export async function runMarket({ db, market, news, runDate, nowSec, summarizer 
     top_news: topNews,
     before_bell: await market.beforeBell(runDate),
     treasury_yields: typeof market.treasuryYields === "function" ? await market.treasuryYields() : null,
-    calendar: await buildCalendar(market, runDate),
+    calendar: await buildCalendar(market, runDate, alphavantageKey),
     mergers: mergers,
     analysts: typeof market.analysts === "function" ? await market.analysts(runDate, userTickers) : [],
     picture: typeof market.pictureOfTheDay === "function" ? await market.pictureOfTheDay(topNews, summarizer) : null,

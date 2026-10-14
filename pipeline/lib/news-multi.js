@@ -7,12 +7,14 @@
 
 import { fetchArticleText } from "./article.js";
 import { fetchAllFeeds } from "./rss.js";
+import { fetchNewsSentimentAV } from "./alphavantage.js";
 
 export class MultiSourceNewsProvider {
-  constructor({ marketauxKey, guardianKey, finnhubProvider }) {
+  constructor({ marketauxKey, guardianKey, finnhubProvider, alphavantageKey }) {
     this.marketauxKey = marketauxKey;
     this.guardianKey = guardianKey;
     this.finnhub = finnhubProvider;
+    this.alphavantageKey = alphavantageKey || null;
   }
 
   /**
@@ -165,6 +167,25 @@ export class MultiSourceNewsProvider {
       }
     } catch (e) {
       console.error(`[news] gdelt: ${e.message}`);
+    }
+
+    // Alpha Vantage NEWS_SENTIMENT: ticker-tagged news with sentiment scores.
+    // NOTE: premium-only on the free key — the module detects that once,
+    // logs it clearly, and skips on subsequent calls (no wasted rate limit).
+    // If upgraded to paid, this starts contributing automatically.
+    if (this.alphavantageKey) {
+      try {
+        const av = await fetchNewsSentimentAV(this.alphavantageKey, { limit: 10 });
+        for (const s of av) {
+          const key = (s.headline || "").slice(0, 60).toLowerCase();
+          if (!seen.has(key) && s.headline) {
+            seen.add(key);
+            candidates.push(s);
+          }
+        }
+      } catch (e) {
+        console.error(`[news] alphavantage sentiment: ${e.message}`);
+      }
     }
 
     // Score and filter: only market-relevant stories
