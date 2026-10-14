@@ -188,35 +188,56 @@ export class FinnhubMarketProvider {
     };
   }
 
-  /** Pre-market snapshot from index ETF quotes. */
+  /** Pre-market snapshot: real index values first, ETF proxies as fallback.
+   *
+   *  Tries Finnhub index symbols (^GSPC, ^IXIC, ^DJI, ^VIX) — if the key
+   *  supports them we get real index values per Pat's no-ETF-proxies rule.
+   *  Falls back to SPY/QQQ/DIA when index quotes return no data.
+   *  Macro series (Treasury, oil, gold, dollar) stay as-is.
+   */
   async beforeBell(_runDate) {
     try {
-      // Core indices + macro proxies (all Finnhub free tier via ETF quotes).
-      // TLT = 20yr Treasury (yield proxy), USO = oil, GLD = gold, UUP = dollar, EFA = Europe, EWJ = Japan
+      // [index-symbol candidates, ETF fallback, label]
       const symbols = [
-        ["SPY", "S&P 500"],
-        ["QQQ", "Nasdaq 100"],
-        ["DIA", "Dow"],
-        ["TLT", "20-Yr Treasury"],
-        ["USO", "WTI Crude"],
-        ["GLD", "Gold"],
-        ["UUP", "US Dollar"],
-        ["EFA", "Europe"],
-        ["EWJ", "Japan"],
+        [["^GSPC", "SPY"], "S&P 500"],
+        [["^IXIC", "QQQ"], "Nasdaq 100"],
+        [["^DJI", "DIA"], "Dow"],
+        [["^VIX", null], "VIX"],
+        [[null, "TLT"], "20-Yr Treasury"],
+        [[null, "USO"], "WTI Crude"],
+        [[null, "GLD"], "Gold"],
+        [[null, "UUP"], "US Dollar"],
+        [[null, "EFA"], "Europe"],
+        [[null, "EWJ"], "Japan"],
       ];
       const quotes = [];
-      for (const [sym] of symbols) {
+      const usedSymbols = [];
+      for (const [[indexSym, etfSym], label] of symbols) {
         let q = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            q = await this._get(`/quote?symbol=${sym}`);
-            if (q && q.c != null) break;
-          } catch (e) {
-            if (attempt === 2) console.error(`[market] beforeBell ${sym} failed:`, e.message);
-            await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+        let used = null;
+        // Try real index symbol first, then ETF fallback
+        for (const sym of [indexSym, etfSym]) {
+          if (!sym) continue;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              q = await this._get(`/quote?symbol=${encodeURIComponent(sym)}`);
+              if (q && q.c != null && q.c !== 0) {
+                used = sym;
+                break;
+              }
+              q = null;
+            } catch (e) {
+              if (attempt === 2) console.error(`[market] beforeBell ${sym} failed:`, e.message);
+              await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+            }
           }
+          if (q) break;
+        }
+        if (used && used !== etfSym && indexSym) {
+          console.log(`[market] beforeBell ${label}: using real index symbol ${used}`);
         }
         quotes.push(q);
+        usedSymbols.push(used);
         // Small delay to avoid rate limits
         await new Promise((r) => setTimeout(r, 500));
       }
@@ -226,7 +247,7 @@ export class FinnhubMarketProvider {
         return { label, text: `${chg} pre-market` };
       };
       return symbols
-        .map(([sym, label], i) => fmt(quotes[i], label))
+        .map(([[,], label], i) => fmt(quotes[i], label))
         .filter(Boolean);
     } catch (e) {
       console.error("[market] beforeBell:", e.message);

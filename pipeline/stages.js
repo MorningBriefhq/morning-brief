@@ -12,6 +12,8 @@
 import { signToken } from "./lib/sign.js";
 import { renderTemplate } from "./lib/render.js";
 import { truncateWords } from "./lib/summarize.js";
+import { fetchEconCalendar } from "./lib/econ.js";
+import { fetchRecent8Ks } from "./lib/edgar.js";
 
 /** Error thrown when the quality gate blocks a send.
  *  Distinct from a crash: the pipeline worked, but the data isn't good enough to ship.
@@ -32,6 +34,40 @@ function extractiveSummary(story, maxWords = 150) {
   if (!text) return "";
   const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 30);
   return truncateWords(sentences.slice(0, 3).join(" "), maxWords);
+}
+
+/**
+ * Build the calendar section: earnings from Finnhub/FMP, econ from FXMacroData.
+ *
+ * Finnhub's /calendar/econ returned empty on 2026-10-14, so FXMacroData
+ * (free, no key, official release calendars) is the primary econ source.
+ * Finnhub econ is kept as a supplement when it has data.
+ */
+async function buildCalendar(market, runDate) {
+  const out = { earnings: [], econ: [] };
+  try {
+    const cal = await market.calendar(runDate);
+    out.earnings = cal.earnings || [];
+    // Keep Finnhub econ as supplement if it ever returns data
+    if (cal.econ && cal.econ.length > 0) {
+      out.econ = cal.econ;
+    }
+  } catch (e) {
+    console.error("[market] calendar (finnhub):", e.message);
+  }
+  // FXMacroData primary for econ — fills the gap when Finnhub is empty
+  if (out.econ.length === 0) {
+    try {
+      const fx = await fetchEconCalendar(7);
+      out.econ = fx.map((e) => ({
+        time_et: e.time_et,
+        event: e.event + (e.importance === "high" ? " ★" : ""),
+      }));
+    } catch (e) {
+      console.error("[market] calendar (fxmacrodata):", e.message);
+    }
+  }
+  return out;
 }
 
 export async function runMarket({ db, market, news, runDate, nowSec, summarizer = null }) {
@@ -85,11 +121,23 @@ export async function runMarket({ db, market, news, runDate, nowSec, summarizer 
     top_news: topNews,
     before_bell: await market.beforeBell(runDate),
     treasury_yields: typeof market.treasuryYields === "function" ? await market.treasuryYields() : null,
-    calendar: await market.calendar(runDate),
+    calendar: await buildCalendar(market, runDate),
     mergers: mergers,
     analysts: typeof market.analysts === "function" ? await market.analysts(runDate, userTickers) : [],
     picture: typeof market.pictureOfTheDay === "function" ? await market.pictureOfTheDay(topNews, summarizer) : null,
   };
+
+  // SEC EDGAR 8-Ks: "what companies did/said/announced" — the highest-signal
+  // free source for Stocks to Watch. Authoritative, no key.
+  let eightKs = [];
+  try {
+    eightKs = await fetchRecent8Ks({ daysBack: 3, maxFilings: 12 });
+    if (eightKs.length > 0) {
+      sections.eight_ks = eightKs;
+    }
+  } catch (e) {
+    console.error("[market] edgar 8-Ks:", e.message);
+  }
 
   // Stocks to Watch: AI-generated editorial picks (10-12 names with substantive reasons).
   // Based on top news, analyst moves, and upcoming earnings. Our editorial voice.
@@ -98,6 +146,12 @@ export async function runMarket({ db, market, news, runDate, nowSec, summarizer 
       const newsContext = topNews.slice(0, 8).map((s, i) => `${i + 1}. ${s.headline}: ${(s.summary || "").slice(0, 200)}`).join("\n");
       const analystContext = (sections.analysts || []).slice(0, 5).map((a) => `- ${a.headline}`).join("\n");
       const earningsContext = ((sections.calendar || {}).earnings || []).slice(0, 8).map((e) => `- ${e.ticker} (${e.company})`).join("\n");
+      // SEC 8-K filings: authoritative corporate actions, exactly the
+      // "what companies did/said/announced" definition for Stocks to Watch.
+      const eightKContext = (eightKs || []).slice(0, 10).map((f) => {
+        const items = (f.items || []).map((it) => `${it.item} ${it.label}`).join("; ");
+        return `- ${f.ticker} (${f.company}), filed ${f.filedDate}: ${items}`;
+      }).join("\n");
 
       const stwPrompt =
         `You are writing the "Stocks to Watch" section for a morning market newsletter. ` +
@@ -117,7 +171,7 @@ export async function runMarket({ db, market, news, runDate, nowSec, summarizer 
         `- Pick as many as have real news. Fewer strong picks beat padded filler.\n\n` +
         `Base picks on the news, analyst actions, and earnings below. Favor S&P 500 companies. ` +
         `No investment advice. Format as a JSON array: [{"ticker": "AVGO", "company": "Broadcom", "reason": "..."}, ...]\n\n` +
-        `Top news:\n${newsContext}\n\nAnalyst moves:\n${analystContext || "(none)"}\n\nEarnings:\n${earningsContext || "(none)"}`;
+        `Top news:\n${newsContext}\n\nAnalyst moves:\n${analystContext || "(none)"}\n\nEarnings:\n${earningsContext || "(none)"}\n\nSEC 8-K filings (authoritative corporate actions):\n${eightKContext || "(none)"}`;
 
       const rawStw = await summarizer.summarizeStory("Stocks to watch", [{ source: "context", text: stwPrompt }]);
       // Try to parse as JSON, fallback to empty

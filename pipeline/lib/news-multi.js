@@ -152,6 +152,21 @@ export class MultiSourceNewsProvider {
       console.error(`[news] rss: ${e.message}`);
     }
 
+    // GDELT: free global news breadth/tone signal, no key.
+    // Rate limit ~1 req/5s — single call per run. Headlines + URLs only.
+    try {
+      const gd = await this._gdeltNews();
+      for (const s of gd) {
+        const key = (s.headline || "").slice(0, 60).toLowerCase();
+        if (!seen.has(key) && s.headline) {
+          seen.add(key);
+          candidates.push(s);
+        }
+      }
+    } catch (e) {
+      console.error(`[news] gdelt: ${e.message}`);
+    }
+
     // Score and filter: only market-relevant stories
     const scored = candidates
       .map((s) => ({ ...s, _score: this._marketScore(s) }))
@@ -211,6 +226,41 @@ export class MultiSourceNewsProvider {
       image: a.image_url || "",
       fullText: "",
     })).filter((a) => a.headline);
+  }
+
+  /**
+   * GDELT DOC 2.0 — free news breadth signal, no key.
+   * https://www.gdeltproject.org/
+   * Returns headlines + URLs + tone. US English sources only.
+   * Single throttled call per run (1 req / 5 sec limit).
+   */
+  async _gdeltNews() {
+    const query = encodeURIComponent(
+      "(stock market OR federal reserve OR earnings OR inflation) sourcelang:english sourcecountry:US"
+    );
+    const url =
+      `https://api.gdeltproject.org/api/v2/doc/doc` +
+      `?query=${query}&mode=artlist&format=json&maxrecords=15&sort=date&timespan=1d`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`gdelt ${res.status}`);
+    const text = await res.text();
+    // GDELT returns a rate-limit notice as plain text instead of JSON
+    if (!text.trim().startsWith("{")) throw new Error("gdelt rate-limited");
+    const data = JSON.parse(text);
+    return (data.articles || [])
+      .filter((a) => a.language === "English" || !a.language)
+      .map((a) => ({
+        datetime: a.seendate ? Date.parse(
+          a.seendate.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/, "$1-$2-$3T$4:$5:$6Z")
+        ) / 1000 : 0,
+        headline: (a.title || "").trim(),
+        source: (a.domain || "").trim(),
+        summary: "",
+        url: a.url || "",
+        image: a.socialimage || "",
+        fullText: "",
+      }))
+      .filter((a) => a.headline);
   }
 
   async _guardianNews() {
