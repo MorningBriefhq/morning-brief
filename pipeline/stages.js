@@ -13,7 +13,16 @@ import { signToken } from "./lib/sign.js";
 import { renderTemplate } from "./lib/render.js";
 import { truncateWords } from "./lib/summarize.js";
 
-/** Tickers actually held by at least one subscribed user. */
+/** Error thrown when the quality gate blocks a send.
+ *  Distinct from a crash: the pipeline worked, but the data isn't good enough to ship.
+ *  runStage records this as status='blocked' (not 'done', not 'failed'). */
+export class QualityBlockedError extends Error {
+  constructor(message, details) {
+    super(message);
+    this.name = "QualityBlockedError";
+    this.details = details;
+  }
+}
 
 export async function runMarket({ db, market, news, runDate, nowSec, summarizer = null }) {
   // Use the multi-source news provider (Marketaux + Guardian + RSS) for Top News.
@@ -141,6 +150,20 @@ export async function runMarket({ db, market, news, runDate, nowSec, summarizer 
       .bind(runDate, section, JSON.stringify(payload), nowSec())
       .run();
   }
+
+  // Data-quality summary: loud log of what we got vs what's missing.
+  // If a section is empty, the reason is in the provider logs above.
+  const sectionCounts = Object.fromEntries(
+    Object.entries(sections).map(([k, v]) => [k, Array.isArray(v) ? v.length : (v ? 1 : 0)])
+  );
+  console.log(`[market] sections for ${runDate}: ${JSON.stringify(sectionCounts)}`);
+  const emptySections = Object.entries(sectionCounts)
+    .filter(([, n]) => n === 0)
+    .map(([k]) => k);
+  if (emptySections.length > 0) {
+    console.warn(`[market] EMPTY sections for ${runDate}: ${emptySections.join(", ")} — check provider logs above for API failures`);
+  }
+
   return sections;
 }
 
@@ -190,13 +213,26 @@ export async function runAssemble({
 
   // QUALITY GATE: Don't ship a bad brief. Every story must have a real summary.
   // Better to send late than send garbage.
+  //
+  // On block: throws QualityBlockedError with specifics. This is LOUD —
+  // logged with exact counts, recorded as status='blocked' in pipeline_runs,
+  // and rethrown so the tick handler sees it. Never silently 'done'.
   const realSummaries = (topNews || []).filter(
     (s) => s.summary && s.summary.length > 200 && s.summary !== s.headline
   );
+  const bbCount = (beforeBell || []).length;
+  const topCount = (topNews || []).length;
+  const realCount = realSummaries.length;
   // Need at least 3 substantive stories, and before_bell must have content
-  if (!topNews || topNews.length < 3 || realSummaries.length < 3 || !beforeBell || beforeBell.length === 0) {
-    console.error(`[assemble] QUALITY GATE: insufficient quality for ${runDate} — ${realSummaries.length} real summaries, ${beforeBell?.length || 0} before_bell items. Aborting send`);
-    return { sent: 0, skipped: users.length, users: users.length, qualityBlocked: true };
+  if (topCount < 3 || realCount < 3 || bbCount === 0) {
+    const reasons = [];
+    if (topCount < 3) reasons.push(`top_news=${topCount} (need >=3)`);
+    if (realCount < 3) reasons.push(`real_summaries=${realCount} (need >=3, summary>200 chars, != headline)`);
+    if (bbCount === 0) reasons.push(`before_bell=${bbCount} (need >0)`);
+    const msg = `[assemble] QUALITY BLOCK for ${runDate}: ${reasons.join("; ")}`;
+    console.error(msg);
+    console.error(`[assemble] top_news headlines: ${(topNews || []).map(s => s.headline?.slice(0, 60)).join(" | ") || "(none)"}`);
+    throw new QualityBlockedError(msg, { topCount, realCount, bbCount, runDate });
   }
 
   // Quiet-day detection: fewer than 3 substantial top stories = visibly shorter email.
@@ -312,7 +348,15 @@ export async function runAssemble({
   return { sent, skipped, users: users.length };
 }
 
-/** Idempotent stage runner for the worker: claims (run_date, stage) once. */
+/** Idempotent stage runner for the worker: claims (run_date, stage) once.
+ *
+ *  Statuses:
+ *    'done'    — stage completed successfully
+ *    'failed'  — stage threw an unexpected error (will alert)
+ *    'blocked' — stage ran but quality gate blocked it (QualityBlockedError).
+ *                Distinct from 'failed': the code worked, the data wasn't shippable.
+ *                The next tick will retry (blocked != done).
+ */
 export async function runStage(db, runDate, stage, fn, nowSec) {
   const existing = await db
     .prepare("SELECT status FROM pipeline_runs WHERE run_date = ? AND stage = ?")
@@ -336,12 +380,20 @@ export async function runStage(db, runDate, stage, fn, nowSec) {
       .run();
     return { alreadyDone: false, result };
   } catch (e) {
+    const status = e instanceof QualityBlockedError ? "blocked" : "failed";
     await db
       .prepare(
-        `UPDATE pipeline_runs SET status = 'failed', detail = ?, finished_at = ? WHERE run_date = ? AND stage = ?`
+        `UPDATE pipeline_runs SET status = ?, detail = ?, finished_at = ? WHERE run_date = ? AND stage = ?`
       )
-      .bind(String(e.message).slice(0, 2000), nowSec(), runDate, stage)
+      .bind(status, String(e.message).slice(0, 2000), nowSec(), runDate, stage)
       .run();
+    // Quality blocks are expected operational events, not crashes.
+    // Log loudly but don't rethrow — the tick continues and will retry next hour.
+    // Unexpected errors still throw so they surface in worker logs.
+    if (e instanceof QualityBlockedError) {
+      console.error(`[runStage] ${stage} BLOCKED for ${runDate} (will retry next tick)`);
+      return { alreadyDone: false, blocked: true, error: e.message };
+    }
     throw e;
   }
 }
