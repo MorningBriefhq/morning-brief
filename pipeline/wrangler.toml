@@ -43,7 +43,7 @@ crons = ["0 * * * *"]
 PRODUCT_NAME = "Morning Briefing"
 BRIEFING_FROM = "Morning Briefing <briefing@morningbrief.link>"
 # Public origin of the Pages site, used for unsubscribe links.
-PUBLIC_ORIGIN = "https://morning-briefing.pages.dev"
+PUBLIC_ORIGIN = "https://morningbrief.link"
 # Ingest scope: "held" (default) = only tickers held by subscribed users.
 # "full" = whole S&P 500 universe in chunks (needs paid plan + tighter cron;
 # see ARCHITECTURE.md for the math).

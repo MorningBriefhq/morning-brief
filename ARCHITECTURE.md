@@ -217,7 +217,7 @@ free tiers → **~$25–35/mo**. ≤100 users: ~$5–14/mo (Resend free tier).
 purchased 2026-10-12. Rename pass done: Pages project and D1 database are
 `morning-briefing`, the pipeline worker is `morning-briefing-pipeline`,
 `BRIEFING_FROM` is `Morning Briefing <briefing@morningbrief.link>`, and
-`PUBLIC_ORIGIN` is `https://morning-briefing.pages.dev`. `PRODUCT_NAME` (env,
+`PUBLIC_ORIGIN` is `https://morningbrief.link`. `PRODUCT_NAME` (env,
 default "Morning Briefing") remains the override mechanism for user-visible
 strings.
 
