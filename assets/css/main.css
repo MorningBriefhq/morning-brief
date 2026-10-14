@@ -17,6 +17,14 @@
   --radius: 6px;
   --max-landing: 1080px;
   --max-app: 760px;
+
+  /* Aliases for component tokens referenced across the stylesheet.
+   * Defined via var() so dark-theme overrides of the base tokens propagate. */
+  --line: var(--hairline);
+  --border: var(--hairline);
+  --surface: var(--soft);
+  /* Darker gold for small text on light backgrounds (5.3:1 on white, WCAG AA). */
+  --gold-deep: #8a651c;
 }
 
 /* Dark theme — same token names, ink-navy surfaces, soft-paper text.
@@ -30,6 +38,8 @@
   --soft: #152a44;
   --muted: #93a1b3;
   --hairline: #2b425f;
+  /* Bright gold already passes on dark surfaces; keep the alias in sync. */
+  --gold-deep: var(--gold);
 }
 
 /* The hero and footer are tuned for dark-navy surfaces in both themes. */
@@ -109,6 +119,13 @@ p {
 
 a {
   color: var(--navy);
+}
+
+/* Visible keyboard focus on all interactive elements (WCAG 2.4.7).
+ * Uses the high-contrast gold-deep token so it reads on both themes. */
+:focus-visible {
+  outline: 2px solid var(--gold-deep);
+  outline-offset: 2px;
 }
 
 /* ---------- Layout ---------- */
@@ -385,7 +402,7 @@ a {
   font-size: 0.8rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--gold);
+  color: var(--gold-deep);
   margin-bottom: 0.6em;
   font-weight: 600;
 }
@@ -935,7 +952,7 @@ a {
   margin-bottom: 0;
 }
 .sample-link {
-  color: var(--gold);
+  color: var(--gold-deep);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
