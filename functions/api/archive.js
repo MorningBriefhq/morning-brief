@@ -10,6 +10,17 @@ export async function onRequestGet(context) {
   const url = new URL(request.url);
   const date = url.searchParams.get("date");
 
+  // D1 binding absent (e.g. preview deployments) — degrade gracefully
+  // instead of throwing (Cloudflare 1101). Production always has DB.
+  if (!env.DB) {
+    if (!date) return json({ dates: [] }, 503);
+    const sections = {};
+    for (const s of SECTIONS) {
+      sections[s] = s === "calendar" ? { earnings: [], econ: [] } : s === "picture" ? null : [];
+    }
+    return json({ date, sections }, 503);
+  }
+
   if (!date) {
     const { results } = await env.DB.prepare(
       "SELECT DISTINCT run_date AS d FROM market_briefs ORDER BY d DESC LIMIT 90"
