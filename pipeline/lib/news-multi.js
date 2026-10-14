@@ -158,15 +158,19 @@ export class MultiSourceNewsProvider {
       .filter((s) => s._score > 0) // Must have positive market relevance
       .sort((a, b) => b._score - a._score);
 
-    // Prefer stories with full text (better summaries)
-    scored.sort((a, b) => {
-      const aFull = (a.fullText || "").length > 500 ? 1 : 0;
-      const bFull = (b.fullText || "").length > 500 ? 1 : 0;
-      if (aFull !== bFull) return bFull - aFull;
-      return b._score - a._score;
-    });
+    // Per-source cap for diversity: no single source dominates the brief.
+    // (Previously a fullText-preference sort buried Marketaux/RSS under
+    // Guardian every time, since Guardian always ships bodyText.)
+    const sourceCounts = {};
+    const diverse = [];
+    for (const s of scored) {
+      const src = (s.source || "unknown").toLowerCase();
+      sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+      if (sourceCounts[src] <= 3) diverse.push(s);
+      if (diverse.length >= limit) break;
+    }
 
-    return scored.slice(0, limit).map(({ _score, ...s }) => s);
+    return diverse.map(({ _score, ...s }) => s);
   }
 
   async _marketauxNews(ticker, from, to) {
@@ -210,9 +214,12 @@ export class MultiSourceNewsProvider {
   }
 
   async _guardianNews() {
+    // production-office=US: without this the API defaults to UK edition,
+    // which is why the brief was full of UK budget/FTSE stories.
     const url =
       `https://content.guardianapis.com/search` +
       `?section=business&q=markets` +
+      `&production-office=US` +
       `&show-fields=bodyText,thumbnail` +
       `&page-size=10&order-by=newest` +
       `&api-key=${this.guardianKey}`;

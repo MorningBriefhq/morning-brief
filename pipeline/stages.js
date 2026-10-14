@@ -24,6 +24,16 @@ export class QualityBlockedError extends Error {
   }
 }
 
+/** Extractive fallback summary: first 2-3 substantive sentences of fullText.
+ *  Used ONLY when AI summarization fails — better than shipping empty.
+ *  (Pat's rule is our-voice synthesis; this is a safety net, not the path.) */
+function extractiveSummary(story, maxWords = 150) {
+  const text = (story.fullText || story.summary || "").trim();
+  if (!text) return "";
+  const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 30);
+  return truncateWords(sentences.slice(0, 3).join(" "), maxWords);
+}
+
 export async function runMarket({ db, market, news, runDate, nowSec, summarizer = null }) {
   // Use the multi-source news provider (Marketaux + Guardian + RSS) for Top News.
   // Falls back to market.topNews (Finnhub) if no news provider.
@@ -42,6 +52,9 @@ export async function runMarket({ db, market, news, runDate, nowSec, summarizer 
   // Enrich stories with synthesized summaries from MULTIPLE sources.
   // We pool Marketaux, Guardian, RSS — the AI synthesizes into our own voice.
   // Skip URL scraping (too slow); use API-provided text only.
+  // If AI fails for a story, fall back to extractive so we never ship "".
+  let aiFailures = 0;
+  let aiAttempts = 0;
   if (summarizer && typeof summarizer.summarizeStory === "function") {
     for (const stories of [topNews, mergers]) {
       for (const s of stories) {
@@ -51,13 +64,21 @@ export async function runMarket({ db, market, news, runDate, nowSec, summarizer 
           if (s.summary) sources.push({ source: "summary", text: s.summary.slice(0, 1500) });
           if (s.fullText) sources.push({ source: "full-text", text: s.fullText.slice(0, 2000) });
           if (sources.length === 0) continue;
+          aiAttempts++;
           const raw = await summarizer.summarizeStory(s.headline, sources);
           s.summary = truncateWords(raw, 150);
         } catch (e) {
+          aiFailures++;
           console.error("[market] story summary failed:", e.message);
+          // Extractive fallback — never leave summary empty
+          const fallback = extractiveSummary(s);
+          if (fallback) s.summary = fallback;
         }
       }
     }
+  }
+  if (aiAttempts > 0 && aiFailures === aiAttempts) {
+    console.error(`[market] ALL ${aiAttempts} AI summaries failed for ${runDate} — check Workers AI binding/model. Using extractive fallbacks.`);
   }
 
   const sections = {
