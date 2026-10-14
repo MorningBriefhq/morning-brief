@@ -58,6 +58,20 @@ async function runMarketStage(env, runDate) {
   }, nowSec);
 }
 
+// Admin auth: ADMIN_KEY must be set as a worker secret
+// (wrangler secret put ADMIN_KEY). Pass it as an x-admin-key header,
+// a Bearer token, or the ?key= query param. Fails closed when unset.
+function isAdminAuthorized(request, env) {
+  const key = env.ADMIN_KEY;
+  if (!key) return false;
+  const url = new URL(request.url);
+  const provided =
+    request.headers.get("x-admin-key") ||
+    (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "") ||
+    url.searchParams.get("key");
+  return provided === key;
+}
+
 async function runAssembleStage(env, runDate) {
   const db = env.DB;
   const { sender } = buildProviders(env);
@@ -118,9 +132,11 @@ export default {
       return Response.json({ ok: true, time: new Date().toISOString() });
     }
 
-    // Pipeline status (for monitoring)
+    // Pipeline status (for monitoring) — admin auth required
     if (url.pathname === "/admin/status") {
-      const runDate = runDateET(new Date());
+      if (!isAdminAuthorized(request, env)) {
+        return new Response("unauthorized", { status: 401 });
+      }      const runDate = runDateET(new Date());
       const { results: stages } = await env.DB.prepare(
         "SELECT stage, status, started_at, finished_at FROM pipeline_runs WHERE run_date = ? ORDER BY started_at"
       ).bind(runDate).all();

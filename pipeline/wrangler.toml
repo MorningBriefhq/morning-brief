@@ -17,6 +17,8 @@
 #   2. wrangler secret put SESSION_SECRET   --config pipeline/wrangler.toml
 #      (must match the Pages project's SESSION_SECRET — same HMAC signs
 #      both session cookies and unsubscribe tokens)
+#   3. wrangler secret put ADMIN_KEY       --config pipeline/wrangler.toml
+#      (guards /admin/status; any random value, e.g. openssl rand -hex 32)
 #
 # Optional keys (all have mock/log-only fallbacks when unset):
 #   FINNHUB_API_KEY    -> real per-ticker news (else MockNewsProvider)
