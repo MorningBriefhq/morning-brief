@@ -1,0 +1,22 @@
+# Morning Brief repo ignore list
+# Keep secrets and local junk out of the public repo.
+
+# Backups and broken test files
+*.bak
+*.broken
+
+# Dependencies
+node_modules/
+
+# Wrangler local state
+.wrangler/
+
+# Logs
+*.log
+
+# Local environment files (secrets)
+.env
+.env.*
+
+# Test scripts with hardcoded keys (compromised — do not re-add)
+test-run.js
