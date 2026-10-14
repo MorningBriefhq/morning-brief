@@ -81,13 +81,20 @@ async function runAssembleStage(env, runDate) {
   }
   const productName = env.PRODUCT_NAME || "Morning Brief";
   const origin = env.PUBLIC_ORIGIN || "https://morningbrief.link";
+  if (!env.SESSION_SECRET) {
+    throw new Error(
+      "[assemble] SESSION_SECRET is not set. Set it via " +
+      "`wrangler secret put SESSION_SECRET --config pipeline/wrangler.toml` " +
+      "(must match the Pages project's SESSION_SECRET)."
+    );
+  }
   let result = null;
   await runStage(db, runDate, "assemble", async () => {
     result = await runAssemble({
       db, sender, runDate,
       dateLong: dateLongET(new Date()),
       origin, productName,
-      sessionSecret: env.SESSION_SECRET || "dev-secret",
+      sessionSecret: env.SESSION_SECRET,
       templateText,
       nowSec: nowSec,
     });
