@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — local end-to-end harness (mock mode).
+// Morning Brief pipeline — local end-to-end harness (mock mode).
 //
 // Runs the full pipeline against an in-memory SQLite DB shaped like D1,
 // with mock news/summarizer/market providers and rendered emails written to
@@ -161,7 +161,7 @@ const asm = await runAssemble({
   runDate,
   dateLong: dateLongET(new Date(`${runDate}T12:00:00Z`)),
   origin: "http://localhost:8080",
-  productName: "Morning Briefing",
+  productName: "Morning Brief",
   sessionSecret: "local-dev-secret",
   templateText,
   nowSec: nowSec,
@@ -173,7 +173,7 @@ const sum2 = await runSummarize({ db, summarizer, runDate, items: withNews, comp
 const asm2 = await runAssemble({
   db, sender, runDate,
   dateLong: dateLongET(new Date(`${runDate}T12:00:00Z`)),
-  origin: "http://localhost:8080", productName: "Morning Briefing",
+  origin: "http://localhost:8080", productName: "Morning Brief",
   sessionSecret: "local-dev-secret", templateText, nowSec: nowSec,
 });
 console.log(`[idempotency] re-run summarize generated=${sum2.generated} (expect 0), assemble sent=${asm2.sent} skipped=${asm2.skipped} (expect 0 sent)`);

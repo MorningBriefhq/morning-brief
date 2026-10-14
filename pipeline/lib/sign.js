@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — token signing for unsubscribe links.
+// Morning Brief pipeline — token signing for unsubscribe links.
 //
 // Mirrors the exact algorithm in functions/api/_lib.js so tokens minted here
 // verify there (and vice versa):

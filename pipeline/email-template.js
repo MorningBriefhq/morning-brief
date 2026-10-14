@@ -13,7 +13,7 @@ const t = `<!DOCTYPE html>
 <title>Morning Brief</title>
 <!--
   ============================================================================
-  MORNING BRIEFING — HTML EMAIL TEMPLATE
+  MORNING BRIEF — HTML EMAIL TEMPLATE
   ----------------------------------------------------------------------------
   Placeholder convention: Handlebars-style.
 
@@ -70,7 +70,7 @@ const t = `<!DOCTYPE html>
 <!-- Header: wordmark, gold rule, date -->
 <tr>
 <td class="email-pad" style="padding:32px 36px 6px 36px;">
-<div class="wordmark" style="font-family:Georgia,'Times New Roman',serif;font-size:26px;letter-spacing:4px;color:#101418;font-weight:normal;">MORNING BRIEFING</div>
+<div class="wordmark" style="font-family:Georgia,'Times New Roman',serif;font-size:26px;letter-spacing:4px;color:#101418;font-weight:normal;">MORNING BRIEF</div>
 <div style="width:52px;height:2px;background-color:#b8892e;margin:14px 0 12px 0;font-size:0;line-height:0;">&nbsp;</div>
 <div style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;">{{date_long}}</div>
 </td>

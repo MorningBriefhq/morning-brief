@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — Finnhub-backed market overview provider.
+// Morning Brief pipeline — Finnhub-backed market overview provider.
 //
 // Replaces the mock provider with real data:
 //   topNews(runDate)   -> top 5-6 general market stories from Finnhub market news

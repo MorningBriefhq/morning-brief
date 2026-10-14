@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — market-overview providers.
+// Morning Brief pipeline — market-overview providers.
 //
 // Sections mirror the LSEG-style email template:
 //   topNews(runDate)   -> [{headline, summary}]            (4-6 big stories)

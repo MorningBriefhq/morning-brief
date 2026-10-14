@@ -33,7 +33,7 @@ export async function onRequestGet(context) {
   return new Response(
     "<!doctype html><html><body style=\"font-family:sans-serif;padding:40px;max-width:560px;margin:0 auto\">" +
       "<h1>You&rsquo;re unsubscribed</h1>" +
-      "<p>You won&rsquo;t receive Morning Briefing anymore. Your account and ticker list are kept " +
+      "<p>You won&rsquo;t receive Morning Brief anymore. Your account and ticker list are kept " +
       "in case you change your mind.</p>" +
       "</body></html>",
     { headers: { "Content-Type": "text/html; charset=utf-8" } }

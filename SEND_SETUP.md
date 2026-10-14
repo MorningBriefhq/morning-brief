@@ -1,4 +1,4 @@
-# Morning Briefing — email sending setup (do later)
+# Morning Brief — email sending setup (do later)
 
 The MVP backend **never sends real email**. `POST /api/auth/request-link` works
 in log-only mode: it creates the user + single-use token and writes the magic
@@ -23,7 +23,7 @@ mail leaves the system unless you complete the steps below.
 3. **Set the secret** (never commit it):
    `wrangler pages secret put RESEND_API_KEY`
 4. **Set the from-address var** in `wrangler.toml`:
-   `BRIEFING_FROM = "Morning Briefing <briefing@your-verified-domain.com>"`
+   `BRIEFING_FROM = "Morning Brief <briefing@your-verified-domain.com>"`
    (must use the verified domain), then redeploy.
 5. **Test**: `POST /api/auth/request-link` with a real address and confirm the
    email arrives; click through to `/api/auth/verify?token=…` → lands on

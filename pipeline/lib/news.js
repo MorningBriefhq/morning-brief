@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — news providers.
+// Morning Brief pipeline — news providers.
 //
 // Interface: companyNews(ticker, from, to) -> [{datetime, headline, source,
 // summary, url}] for the overnight window. `from`/`to` are "YYYY-MM-DD".

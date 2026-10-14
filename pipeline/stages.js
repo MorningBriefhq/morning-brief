@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — stages.
+// Morning Brief pipeline — stages.
 //
 // All stages are written against the D1 statement interface:
 //   db.prepare(sql).bind(...).first()  -> row | null

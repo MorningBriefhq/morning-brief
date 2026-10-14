@@ -1,4 +1,4 @@
--- Morning Briefing — D1 schema (ARCHITECTURE.md contract).
+-- Morning Brief — D1 schema (ARCHITECTURE.md contract).
 -- Apply: wrangler d1 execute morning-briefing --file=schema.sql
 
 CREATE TABLE users (

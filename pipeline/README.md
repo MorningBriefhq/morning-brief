@@ -1,4 +1,4 @@
-# Morning Briefing — overnight pipeline
+# Morning Brief — overnight pipeline
 
 Scheduled pipeline that produces and sends the personalized morning email.
 See `ARCHITECTURE.md` (Pipeline section) for the contract.
@@ -61,7 +61,7 @@ ticks are safe no-ops.
 | `SUMMARIZER_MODEL` | Anthropic model id (default `claude-haiku-4-5`) |
 | `RESEND_API_KEY` | Real email sending via Resend (else log-only stub) |
 | `SESSION_SECRET` | **Required in prod.** Must match the Pages project's secret — it signs both session cookies and unsubscribe tokens |
-| `PRODUCT_NAME` | Display name in subject lines (default "Morning Briefing") |
+| `PRODUCT_NAME` | Display name in subject lines (default "Morning Brief") |
 | `PUBLIC_ORIGIN` | Pages site origin for unsubscribe links |
 | `BRIEFING_FROM` | From-address for sends |
 | `INGEST_MODE` | `held` (default: only tickers users hold) or `full` (whole S&P 500, chunked) |

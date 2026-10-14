@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — minimal HTML email renderer.
+// Morning Brief pipeline — minimal HTML email renderer.
 //
 // Implements the placeholder contract documented at the top of
 // email/template.html:

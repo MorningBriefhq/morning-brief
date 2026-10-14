@@ -1,4 +1,4 @@
-// Morning Briefing — shared API helpers (Pages Functions).
+// Morning Brief — shared API helpers (Pages Functions).
 // Web Crypto API only. No Node builtins.
 
 const te = new TextEncoder();

@@ -1,4 +1,4 @@
-# Morning Briefing — Cloudflare Pages project config.
+# Morning Brief — Cloudflare Pages project config.
 #
 # First-time setup:
 #   1. wrangler d1 create morning-briefing
@@ -21,7 +21,7 @@ compatibility_date = "2026-10-11"
 
 [vars]
 # From-address for magic-link emails (only used when RESEND_API_KEY is set).
-BRIEFING_FROM = "Morning Briefing <briefing@morningbrief.link>"
+BRIEFING_FROM = "Morning Brief <briefing@morningbrief.link>"
 # Set to "true" in preview/dev ONLY to include the magic link in the
 # request-link JSON response as `debug_link`. NEVER enable in production.
 # MAGIC_LINK_DEBUG = "true"

@@ -1,6 +1,6 @@
-# Morning Briefing — MVP Architecture Contract
+# Morning Brief — MVP Architecture Contract
 
-Product: "Morning Briefing" — personalized portfolio-news newsletter. Users sign up
+Product: "Morning Brief" — personalized portfolio-news newsletter. Users sign up
 (email + first name, magic-link auth), save S&P 500 tickers to a profile, and get a
 daily ~7 AM ET personalized HTML email. Freemium: 10 tickers free.
 
@@ -213,12 +213,12 @@ free tiers → **~$25–35/mo**. ≤100 users: ~$5–14/mo (Resend free tier).
 
 ### Name note (2026-10-12)
 
-"Morning Briefing" is CONFIRMED as the product name. Domain `morningbrief.link`
+"Morning Brief" is CONFIRMED as the product name. Domain `morningbrief.link`
 purchased 2026-10-12. Rename pass done: Pages project and D1 database are
 `morning-briefing`, the pipeline worker is `morning-briefing-pipeline`,
-`BRIEFING_FROM` is `Morning Briefing <briefing@morningbrief.link>`, and
+`BRIEFING_FROM` is `Morning Brief <briefing@morningbrief.link>`, and
 `PUBLIC_ORIGIN` is `https://morningbrief.link`. `PRODUCT_NAME` (env,
-default "Morning Briefing") remains the override mechanism for user-visible
+default "Morning Brief") remains the override mechanism for user-visible
 strings.
 
 ## Decisions log

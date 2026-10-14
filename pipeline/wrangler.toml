@@ -1,4 +1,4 @@
-# Morning Briefing — overnight pipeline worker config.
+# Morning Brief — overnight pipeline worker config.
 #
 # This is a SEPARATE worker from the Pages site (Pages Functions can't run cron
 # triggers). It binds to the SAME D1 database.
@@ -42,8 +42,8 @@ crons = ["0 * * * *"]
 
 [vars]
 # Display name used in subject lines ("<Name>: Monday, October 12, 2026").
-PRODUCT_NAME = "Morning Briefing"
-BRIEFING_FROM = "Morning Briefing <briefing@morningbrief.link>"
+PRODUCT_NAME = "Morning Brief"
+BRIEFING_FROM = "Morning Brief <briefing@morningbrief.link>"
 # Public origin of the Pages site, used for unsubscribe links.
 PUBLIC_ORIGIN = "https://morningbrief.link"
 # Ingest scope: "held" (default) = only tickers held by subscribed users.

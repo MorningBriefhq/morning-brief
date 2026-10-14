@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — email senders.
+// Morning Brief pipeline — email senders.
 //
 // Interface: send({to, subject, html, text}) -> {ok, id?|file?|stubbed?}
 //

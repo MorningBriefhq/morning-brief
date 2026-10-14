@@ -1,4 +1,4 @@
--- Morning Briefing — pipeline schema additions.
+-- Morning Brief — pipeline schema additions.
 -- Apply ONCE, after schema.sql:
 --   wrangler d1 execute morning-briefing --file=pipeline/schema-additions.sql
 --

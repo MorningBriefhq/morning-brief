@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — canned data for mock mode.
+// Morning Brief pipeline — canned data for mock mode.
 // Used by the worker when API keys are unset, and by local-run.js / tests.
 // Headlines are written date-agnostically so samples always read plausibly.
 

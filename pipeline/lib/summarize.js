@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — per-ticker summarizers.
+// Morning Brief pipeline — per-ticker summarizers.
 //
 // Interface: summarize(ticker, company, articles) -> string (2-3 sentences,
 // neutral, news-only — never advice). Summaries are generated ONCE per ticker
@@ -76,7 +76,7 @@ export class WorkersAISummarizer extends Summarizer {
         {
           role: "system",
           content:
-            "You write morning briefing summaries for investors. " +
+            "You write Morning Brief summaries for investors. " +
             "Deliver the key information: what happened, specific numbers/names, why it matters. " +
             "Be dense and factual. Never give investment advice.",
         },

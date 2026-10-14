@@ -1,4 +1,4 @@
-/* Morning Briefing — shared frontend helpers (vanilla JS, no frameworks).
+/* Morning Brief — shared frontend helpers (vanilla JS, no frameworks).
  * Provides: MB.api (JSON fetch with 401 -> "/" redirect), MB.toast,
  * MB.escapeHtml, and the MB.theme helpers (dark/light toggle). */
 (function () {

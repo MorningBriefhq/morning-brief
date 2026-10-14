@@ -1,4 +1,4 @@
-// Morning Briefing pipeline — ET time helpers.
+// Morning Brief pipeline — ET time helpers.
 // All scheduling is anchored to America/New_York so cron windows stay correct
 // across DST. Cloudflare cron triggers are UTC; the worker checks the ET hour.
 
