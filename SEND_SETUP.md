@@ -38,3 +38,23 @@ mail leaves the system unless you complete the steps below.
 - Daily newsletter sending (the ~7 AM ET brief) is **out of scope** for this
   MVP — this setup covers only the auth magic links. The newsletter pipeline
   will reuse the same Resend key when it is built.
+
+## Bounce/complaint suppression (deliverability)
+
+`POST /api/webhooks/resend` receives Resend's `email.bounced` and
+`email.complained` events, verifies the Svix signature, and records the
+recipient in the `suppressions` table so the pipeline never mails them again.
+Setup:
+
+1. **Apply the schema** (once, after `pipeline/schema-additions.sql`):
+   `wrangler d1 execute morning-briefing --file=pipeline/migrations/0003-suppressions.sql --remote`
+2. **Create the webhook** in the Resend dashboard (Webhooks → Add Endpoint):
+   endpoint `https://morningbrief.link/api/webhooks/resend`, events
+   `email.bounced` and `email.complained`. Copy the **signing secret**
+   (starts with `whsec_`) — it is shown only once.
+3. **Set the secret**: `wrangler pages secret put RESEND_WEBHOOK_SECRET`
+   and paste the signing secret. Without it the endpoint rejects every event
+   (fail closed), so suppression never activates.
+
+Every daily email also carries `List-Unsubscribe` / `List-Unsubscribe-Post`
+headers pointing at the recipient's one-click unsubscribe URL.

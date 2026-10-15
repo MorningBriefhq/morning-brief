@@ -15,6 +15,12 @@
 #   RESEND_API_KEY  — OPTIONAL. When set, magic-link emails are sent via Resend.
 #                     When unset, links are only logged server-side (log-only mode).
 #                     See SEND_SETUP.md.
+#   RESEND_WEBHOOK_SECRET — REQUIRED for /api/webhooks/resend. The Svix signing
+#                     secret for your Resend webhook (starts with "whsec_"; copy
+#                     from the Resend dashboard: Webhooks -> your endpoint ->
+#                     signing secret). Without it, bounce/complaint events are
+#                     rejected unverified and suppressions never land.
+#                     See SEND_SETUP.md.
 
 name = "morning-briefing"
 compatibility_date = "2026-10-11"
