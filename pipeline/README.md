@@ -12,6 +12,7 @@ pipeline/
   stages.js            # ingest / summarize / market / assemble (+ idempotent runStage)
   schema-additions.sql # pipeline tables + users.unsubscribed_at (apply ONCE, after schema.sql)
   sync-template.js     # regenerates email-template.js from email/template.html
+  render-sample.js     # regenerates email/sample-email{,-dark}.html from the template (pipeline artifact — never hand-edit samples)
   email-template.js    # bundled template copy (generated — do not edit by hand)
   local-run.js         # local end-to-end harness (mock mode, writes pipeline/outbox/)
   test.js              # unit + integration tests: node --test pipeline/test.js
@@ -90,9 +91,17 @@ ticks are safe no-ops.
 ## Go-live checklist
 
 1. `wrangler d1 execute morning-briefing --file=pipeline/schema-additions.sql` (after schema.sql)
-2. `wrangler secret put SESSION_SECRET --config pipeline/wrangler.toml` (same value as Pages project)
-3. `wrangler deploy --config pipeline/wrangler.toml`
-4. Add `FINNHUB_API_KEY` when ready for real news
-5. Add `ANTHROPIC_API_KEY` when ready for real summaries
-6. Add `RESEND_API_KEY` + verify sending domain when ready for real mail
-7. Rename: replace the product name (this default, `email/template.html`, `index.html`, `profile.html`) when Pat picks the final name
+2. Apply numbered migrations in order — see `pipeline/migrations/README.md`.
+   Currently:
+   - `wrangler d1 execute morning-briefing --file=pipeline/migrations/0002-email-sends-claim.sql`
+     (adds `resend_id`/`claimed_at` to `email_sends`; apply BEFORE deploying
+     any worker build that references those columns — the migration is
+     additive, so applying it early is safe for the currently deployed code)
+   - `wrangler d1 execute morning-briefing --file=pipeline/migrations/0003-suppressions.sql`
+     (bounce/complaint suppression table for the Resend webhook)
+3. `wrangler secret put SESSION_SECRET --config pipeline/wrangler.toml` (same value as Pages project)
+4. `wrangler deploy --config pipeline/wrangler.toml`
+5. Add `FINNHUB_API_KEY` when ready for real news
+6. Add `ANTHROPIC_API_KEY` when ready for real summaries
+7. Add `RESEND_API_KEY` + verify sending domain when ready for real mail
+8. Rename: replace the product name (this default, `email/template.html`, `index.html`, `profile.html`) when Pat picks the final name

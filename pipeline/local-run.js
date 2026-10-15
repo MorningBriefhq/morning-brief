@@ -14,7 +14,7 @@
 // quiet-ticker skipping, unsubscribed-user skipping, idempotent re-runs.
 
 import { DatabaseSync } from "node:sqlite";
-import { readFile, mkdir } from "node:fs/promises";
+import { readFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runDateET, dateLongET } from "./lib/time.js";
@@ -113,6 +113,10 @@ const fullMode = args.full === true || args.full === "true";
 const db = openTestDB();
 applySql(db, await readFile(path.join(root, "schema.sql"), "utf8"));
 applySql(db, await readFile(path.join(root, "pipeline", "schema-additions.sql"), "utf8"));
+// Numbered migrations, in order (see pipeline/migrations/README.md).
+for (const m of (await readdir(path.join(root, "pipeline", "migrations"))).filter((f) => f.endsWith(".sql")).sort()) {
+  applySql(db, await readFile(path.join(root, "pipeline", "migrations", m), "utf8"));
+}
 await seed(db);
 
 const sp500 = JSON.parse(await readFile(path.join(root, "data", "sp500.json"), "utf8"));
