@@ -28,7 +28,7 @@ import templateText from "./email-template.js";
 const nowSec = () => Math.floor(Date.now() / 1000);
 
 const SEND_WINDOW_START = 6;  // 6 AM ET
-const SEND_WINDOW_END = 10;   // 10 AM ET (inclusive)
+const SEND_WINDOW_END = 10;    // 10 AM ET
 
 // ---------------------------------------------------------------------------
 // Startup validation
