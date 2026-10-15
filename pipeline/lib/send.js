@@ -21,10 +21,12 @@ export class ResendSender extends Sender {
   }
   async send({ to, subject, html, text }) {
     if (!this.apiKey) {
-      console.log(
-        `[send-stub] to=${to} subject="${subject}" (${(html || "").length} bytes html) — RESEND_API_KEY unset, not sent`
+      // Never silently stub in production: a missing key is a hard failure.
+      // (2026-10-15: the old stub returned ok:true, which stages.js recorded
+      // as 'sent' — two days of zero emails with no error anywhere.)
+      throw new Error(
+        `RESEND_API_KEY unset — cannot send to ${to} subject="${subject}"`
       );
-      return { ok: true, stubbed: true };
     }
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
