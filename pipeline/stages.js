@@ -299,28 +299,27 @@ export async function runAssemble({
   const picture = marketSection(briefRows, runDate, "picture");
   const dayTake = marketSection(briefRows, runDate, "day_take");
 
-  // QUALITY GATE: Don't ship a bad brief. Every story must have a real summary.
-  // Better to send late than send garbage.
-  //
-  // On block: throws QualityBlockedError with specifics. This is LOUD —
-  // logged with exact counts, recorded as status='blocked' in pipeline_runs,
-  // and rethrown so the tick handler sees it. Never silently 'done'.
-  const realSummaries = (topNews || []).filter(
-    (s) => s.summary && s.summary.length > 200 && s.summary !== s.headline
-  );
+  // QUALITY GATE: Don't ship a truly broken brief.
+  // Blocks only if there's NO content at all. Short summaries get a warning,
+  // not a block — the archive test is "is there content?", not "is it perfect?".
+  // (2026-10-15: the old gate required 3 summaries >200 chars and blocked
+  //  100% of sends on Oct 14-15 when the AI produced shorter summaries.)
   const bbCount = (beforeBell || []).length;
   const topCount = (topNews || []).length;
-  const realCount = realSummaries.length;
-  // Need at least 3 substantive stories, and before_bell must have content
-  if (topCount < 3 || realCount < 3 || bbCount === 0) {
+  if (topCount === 0 || bbCount === 0) {
     const reasons = [];
-    if (topCount < 3) reasons.push(`top_news=${topCount} (need >=3)`);
-    if (realCount < 3) reasons.push(`real_summaries=${realCount} (need >=3, summary>200 chars, != headline)`);
+    if (topCount === 0) reasons.push(`top_news=${topCount} (need >0)`);
     if (bbCount === 0) reasons.push(`before_bell=${bbCount} (need >0)`);
     const msg = `[assemble] QUALITY BLOCK for ${runDate}: ${reasons.join("; ")}`;
     console.error(msg);
-    console.error(`[assemble] top_news headlines: ${(topNews || []).map(s => s.headline?.slice(0, 60)).join(" | ") || "(none)"}`);
-    throw new QualityBlockedError(msg, { topCount, realCount, bbCount, runDate });
+    throw new QualityBlockedError(msg, { topCount, bbCount, runDate });
+  }
+  // Warn on short summaries, but don't block the send.
+  const realSummaries = (topNews || []).filter(
+    (s) => s.summary && s.summary.length > 200 && s.summary !== s.headline
+  );
+  if (realSummaries.length < 3) {
+    console.warn(`[assemble] WARNING for ${runDate}: only ${realSummaries.length}/3 substantive summaries (sending anyway)`);
   }
 
   // Quiet-day detection: fewer than 3 substantial top stories = visibly shorter email.
