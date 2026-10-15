@@ -18,7 +18,7 @@ ACCOUNT_ID = "52095379a0c3ce8a6e113a6f4e8a84db"
 SCRIPT_NAME = "morning-briefing-pipeline"
 COMPATIBILITY_DATE = "2026-10-11"
 
-sys.path.insert(0, "/opt/hatch/skills/skill-creator/bin")
+sys.path.insert(0, "/opt/hatch/workflow-skills/custom-connector-setup/bin")
 from dynamic_credentials import add_surrogate_to_request, read_json_response
 
 BASE = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/workers/scripts/{SCRIPT_NAME}"
