@@ -20,6 +20,25 @@ export function truncateWords(text, maxWords) {
   return words.slice(0, maxWords).join(" ");
 }
 
+/** Cap a story summary to ~140 chars / 2 sentences for the email layout.
+ *  Takes the first 2 substantive sentences, then trims to the last word
+ *  boundary at or under maxChars. Used by stages.js so the email and text
+ *  versions share the same capped copy. */
+export function capSummary(text, maxChars = 140, maxSentences = 2) {
+  if (!text) return text;
+  const sentences = text
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .filter((s) => s.trim().length > 0);
+  let out = sentences.slice(0, maxSentences).join(" ").trim();
+  if (out.length > maxChars) {
+    const cut = out.slice(0, maxChars);
+    const lastSpace = cut.lastIndexOf(" ");
+    out = (lastSpace > maxChars * 0.6 ? cut.slice(0, lastSpace) : cut).trim();
+  }
+  return out;
+}
+
 export class Summarizer {
   async summarize(_ticker, _company, _articles) {
     throw new Error("Summarizer.summarize not implemented");
@@ -47,7 +66,7 @@ export class MockSummarizer extends Summarizer {
     } else {
       text = (sources || headline || "").trim();
     }
-    // Return a substantive mock summary (200+ chars for quality gate tests)
+    // Return a substantive mock summary (capped downstream by capSummary)
     const base = text.split(/(?<=[.!?])\s/)[0].trim() || headline;
     // Pad to ensure it passes the 200-char quality threshold in tests
     if (base.length < 220) {
@@ -126,7 +145,7 @@ export class WorkersAISummarizer extends Summarizer {
             `${sourceText || "(no additional details)"}`,
         },
       ],
-      max_tokens: 350,
+      max_tokens: 450,
     });
     const text = (res.response || "").trim();
     if (!text) throw new Error("workers-ai returned no text");

@@ -203,10 +203,59 @@ export class MultiSourceNewsProvider {
       const src = (s.source || "unknown").toLowerCase();
       sourceCounts[src] = (sourceCounts[src] || 0) + 1;
       if (sourceCounts[src] <= 3) diverse.push(s);
-      if (diverse.length >= limit) break;
+      // Oversample: clustering below may drop near-duplicates, so collect
+      // more than `limit` candidates before the final cut.
+      if (diverse.length >= limit * 3) break;
     }
 
-    return diverse.map(({ _score, ...s }) => s);
+    // Headline clustering: 8 slots = 8 distinct stories, not 3 versions of
+    // the same Fed story. Jaccard similarity over stopword-stripped headline
+    // token sets; >0.45 against an already-kept story = duplicate.
+    const distinct = this._clusterDedupe(diverse);
+
+    return distinct.slice(0, limit).map(({ _score, ...s }) => s);
+  }
+
+  _clusterDedupe(stories) {
+    const STOP = new Set([
+      "a", "an", "the", "and", "or", "of", "to", "in", "on", "for", "with",
+      "as", "at", "by", "from", "is", "are", "was", "were", "be", "been",
+      "it", "its", "this", "that", "these", "those", "will", "would",
+      "after", "amid", "over", "under", "up", "down", "new", "top", "latest",
+      "live", "updates", "us", "says", "said", "report", "reports",
+      "market", "markets", "stock", "stocks", "share", "shares",
+      "investor", "investors", "trading",
+    ]);
+    const tokens = (h) =>
+      new Set(
+        (h || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, " ")
+          .split(/\s+/)
+          .filter((t) => t && t.length > 2 && !STOP.has(t))
+          // Naive stemming so "signals"/"signal", "holds"/"hold" match.
+          .map((t) => (t.length > 4 ? t.replace(/s$/, "") : t))
+      );
+    const kept = [];
+    const keptTokens = [];
+    for (const s of stories) {
+      const ts = tokens(s.headline);
+      let dup = false;
+      for (const kt of keptTokens) {
+        let inter = 0;
+        for (const t of ts) if (kt.has(t)) inter++;
+        const union = ts.size + kt.size - inter;
+        if (union > 0 && inter / union > 0.35) {
+          dup = true;
+          break;
+        }
+      }
+      if (!dup) {
+        kept.push(s);
+        keptTokens.push(ts);
+      }
+    }
+    return kept;
   }
 
   async _marketauxNews(ticker, from, to) {

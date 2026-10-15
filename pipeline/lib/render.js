@@ -54,7 +54,18 @@ export function renderTemplate(template, data, options = {}) {
   // HTML comments are documentation only (the template's own placeholder
   // reference lives in one) — strip them so {{#each}} examples in comments
   // can never be mistaken for real template blocks.
-  const clean = template.replace(/<!--[\s\S]*?-->/g, "");
+  // EXCEPTION: Outlook conditional comments (<!--[if mso]>...<![endif]-->)
+  // are structural markup, not documentation — stash them, strip the rest,
+  // then restore.
+  const COND_RE = /<!--\[if[\s\S]*?<!\[endif\]-->/g;
+  const stashed = [];
+  const withStash = template.replace(COND_RE, (m) => {
+    stashed.push(m);
+    return `CONDSTASH${stashed.length - 1}CONDSTASH`;
+  });
+  const clean = withStash
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/CONDSTASH(\d+)CONDSTASH/g, (_m, i) => stashed[+i]);
   // Loops first (so {{index}} and item keys resolve per item).
   let out = clean.replace(EACH_RE, (_m, name, block) => {
     const items = data[name];
