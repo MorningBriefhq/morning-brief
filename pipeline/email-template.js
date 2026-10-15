@@ -10,6 +10,8 @@ const t = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <title>Morning Brief</title>
 <!--
   ============================================================================
@@ -21,15 +23,26 @@ const t = `<!DOCTYPE html>
     {{first_name}}       Subscriber's first name, e.g. "Pat"
     {{date_long}}        Full date line, e.g. "Monday, October 12, 2026"
     {{preheader}}        Hidden preview text shown by inboxes next to the
-                         subject line (one short sentence)
+                         subject line (one short sentence). Carries the
+                         greeting — the visible greeting block was removed.
     {{unsubscribe_url}}  Per-recipient unsubscribe link for the footer
 
   Repeatable lists ({{#each}} ... {{/each}} loops; the backend renders one
   copy of the block per list item):
     {{#each top_news}}        {{headline}}  {{summary}}  ({{index}} = 1-based number, optional)
-    {{#each before_bell}}     {{label}}  {{text}}
-    {{#each your_stocks}}     {{ticker}}  {{company}}  {{summary}}
-    {{#each calendar_earnings}}{{ticker}}  {{company}}  {{time}}  (e.g. "Tuesday · Before open")
+    {{#each before_bell}}     {{label}}  {{level}}  {{change}}  {{color}}  {{note_display}}
+    {{#each premarket_movers}}{{ticker}}  {{company}}  {{change_text}}  {{reason}}  {{color}}
+                             (real index/future quotes; {{change}} is color-coded via {{color}})
+    {{#each futures_strip}}   {{name}}  {{level}}  {{pct}}  {{color}}
+                             (header strip: S&P / Nasdaq / Dow futures as big numerals)
+
+  Scalars:
+    {{overnight_line}}       One compact line, e.g. "Nikkei 225 -1.2% · Shanghai
+                             Composite +0.4% · FTSE 100 -0.3% — Europe mid-session"
+                             (empty string when no overnight data)
+    {{#each stocks_to_watch}} {{ticker}}  {{company}}  {{reason}}
+    {{#each calendar_earnings}}{{ticker}}  {{company}}  {{time}}  {{estimate}}
+                             {{earnings_detail}}  {{irLink}}
     {{#each calendar_econ}}   {{time_et}}  {{event}}
 
   Empty lists: if a list is empty the whole {{#each}} block is removed, so a
@@ -38,94 +51,136 @@ const t = `<!DOCTYPE html>
   Email constraints honored: table-based layout, ALL critical CSS inline,
   no webfonts, no external images, max-width 640px, fluid at 320px.
   The <style> block below holds ONLY progressive-enhancement media queries.
+
+  Dark mode: prefers-color-scheme media queries reuse the same palette the
+  server-side renderer inlines for theme=dark (see pipeline/lib/render.js
+  DARK_EMAIL_TOKENS), so client dark mode and server dark theme agree.
+  [data-ogsc] selectors cover Outlook.com dark mode. Outlook for Windows
+  ignores max-width divs, so the card is wrapped in a fixed 640px table
+  inside Outlook if-mso conditional comments (renderTemplate preserves those;
+  note: never write a literal conditional-comment opener inside an HTML
+  comment in this file — the renderer's stash regex would misfire).
   ============================================================================
 -->
 <style>
+/* ---- mobile (<=480px) ---- */
 @media only screen and (max-width: 480px) {
   .email-outer { padding: 12px 6px !important; }
-  .email-pad   { padding-left: 20px !important; padding-right: 20px !important; }
+  .email-pad   { padding-left: 24px !important; padding-right: 24px !important; }
   .wordmark    { font-size: 20px !important; letter-spacing: 3px !important; }
-  .headline    { font-size: 15px !important; }
-  .greeting    { font-size: 16px !important; }
-  .bb-label    { font-size: 11px !important; }
+  .headline    { font-size: 17px !important; }
+  .summary     { font-size: 14px !important; }
+  .strip-level { font-size: 20px !important; }
+  /* Stack the two-column tables: label becomes a small uppercase block
+     above the value, full width. */
+  .bb-label, .econ-time {
+    display: block !important;
+    width: 100% !important;
+    padding: 9px 0 2px 0 !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1.5px !important;
+    white-space: normal !important;
+  }
+  .bb-text, .econ-event {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 0 9px 0 !important;
+  }
 }
+/* ---- dark mode: real theme, same tokens as the server-side dark render ---- */
+@media (prefers-color-scheme: dark) {
+  body { background-color: #0c1929 !important; }
+  .email-bg { background-color: #0c1929 !important; }
+  .email-card { background-color: #152a44 !important; }
+  .navy-strip { background-color: #2b425f !important; }
+  .wordmark { color: #e8edf4 !important; }
+  .gold-rule { background-color: #c99a3f !important; }
+  .index-num { color: #c99a3f !important; }
+  .section-title { color: #9fc0e8 !important; }
+  .rule { background-color: #2b425f !important; }
+  .hairline { border-bottom-color: #2b425f !important; }
+  .headline { color: #e8edf4 !important; }
+  .strip-level { color: #e8edf4 !important; }
+  .body-text { color: #c2cbd7 !important; }
+  .muted { color: #93a1b3 !important; }
+  .ticker-badge { background-color: #2b425f !important; color: #e8edf4 !important; }
+  .ticker-link { color: #9fc0e8 !important; }
+  .bb-label { color: #9fc0e8 !important; }
+  .bb-text { color: #e8edf4 !important; }
+  .econ-time { color: #9fc0e8 !important; }
+  .econ-event { color: #e8edf4 !important; }
+  .time-badge { background-color: #0c1929 !important; border-color: #2b425f !important; color: #93a1b3 !important; }
+  .footer-link { color: #9fc0e8 !important; }
+}
+/* Outlook.com dark mode fallback (data-ogsc is only present in dark mode) */
+[data-ogsc] body, [data-ogsc] .email-bg { background-color: #0c1929 !important; }
+[data-ogsc] .email-card { background-color: #152a44 !important; }
+[data-ogsc] .navy-strip { background-color: #2b425f !important; }
+[data-ogsc] .wordmark, [data-ogsc] .headline, [data-ogsc] .strip-level, [data-ogsc] .bb-text, [data-ogsc] .econ-event { color: #e8edf4 !important; }
+[data-ogsc] .gold-rule { background-color: #c99a3f !important; }
+[data-ogsc] .index-num { color: #c99a3f !important; }
+[data-ogsc] .section-title, [data-ogsc] .bb-label, [data-ogsc] .econ-time, [data-ogsc] .ticker-link, [data-ogsc] .footer-link { color: #9fc0e8 !important; }
+[data-ogsc] .rule { background-color: #2b425f !important; }
+[data-ogsc] .hairline { border-bottom-color: #2b425f !important; }
+[data-ogsc] .body-text { color: #c2cbd7 !important; }
+[data-ogsc] .muted { color: #93a1b3 !important; }
+[data-ogsc] .ticker-badge { background-color: #2b425f !important; color: #e8edf4 !important; }
+[data-ogsc] .time-badge { background-color: #0c1929 !important; border-color: #2b425f !important; color: #93a1b3 !important; }
 </style>
 </head>
 <body style="margin:0;padding:0;word-spacing:normal;background-color:#f4f6f8;">
 <!-- Hidden preheader: inbox preview text -->
 <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">{{preheader}}</div>
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f8;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-bg" style="background-color:#f4f6f8;">
 <tr>
 <td class="email-outer" align="center" style="padding:24px 12px;">
 
+<!--[if mso]>
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td>
+<![endif]-->
 <div style="max-width:640px;margin:0 auto;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-card" style="background-color:#ffffff;">
 
 <!-- Navy top strip -->
 <tr>
-<td style="background-color:#0e2a47;font-size:0;line-height:0;height:6px;">&nbsp;</td>
+<td class="navy-strip" style="background-color:#0e2a47;font-size:0;line-height:0;height:6px;">&nbsp;</td>
 </tr>
 
 <!-- Header: wordmark, gold rule, date -->
 <tr>
 <td class="email-pad" style="padding:32px 36px 6px 36px;">
 <div class="wordmark" style="font-family:Georgia,'Times New Roman',serif;font-size:26px;letter-spacing:4px;color:#101418;font-weight:normal;">MORNING BRIEF</div>
-<div style="width:52px;height:2px;background-color:#b8892e;margin:14px 0 12px 0;font-size:0;line-height:0;">&nbsp;</div>
-<div style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;">{{date_long}}</div>
+<div class="gold-rule" style="width:52px;height:2px;background-color:#b8892e;margin:14px 0 12px 0;font-size:0;line-height:0;">&nbsp;</div>
+<div class="muted" style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;">{{date_long}}</div>
 </td>
 </tr>
 
-<!-- Greeting -->
+<!-- ============ FUTURES STRIP ============ -->
+{{#if futures_strip}}
 <tr>
-<td class="email-pad" style="padding:18px 36px 4px 36px;">
-<div class="greeting" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;line-height:1.6;color:#101418;">Good morning, {{first_name}} &mdash; here&rsquo;s what matters before the opening bell.</div>
-</td>
-</tr>
-
-<!-- ============ TOP NEWS ============ -->
+<td class="email-pad" style="padding:18px 36px 6px 36px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>
-<td class="email-pad" style="padding:30px 36px 0 36px;">
-<div style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">TOP NEWS</div>
-<div style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
+{{#each futures_strip}}
+<td align="center" valign="top" width="33%" style="padding:6px 4px;">
+<div class="muted" style="font-family:Georgia,'Times New Roman',serif;font-size:11px;letter-spacing:2px;color:#5b6570;margin-bottom:6px;">{{name}}</div>
+<div class="strip-level" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:24px;font-weight:700;color:#101418;line-height:1.2;">{{level}}</div>
+<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:{{color}};margin-top:4px;">{{pct}}</div>
 </td>
-</tr>
-{{#each top_news}}
-<tr>
-<td class="email-pad" style="padding:20px 36px 20px 36px;border-bottom:1px solid #e2e7ec;">
-<div style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#b8892e;margin-bottom:8px;">{{index}}</div>
-<div class="headline" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;line-height:1.4;color:#101418;margin-bottom:6px;">{{headline}}</div>
-<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#3a424b;">{{summary}}</div>
-</td>
-</tr>
 {{/each}}
-
-<!-- ============ STOCKS TO WATCH ============ -->
-{{#if stocks_to_watch}}
-<tr>
-<td class="email-pad" style="padding:30px 36px 0 36px;">
-<div style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">STOCKS TO WATCH</div>
-<div style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
+</tr>
+</table>
 </td>
 </tr>
-{{#each stocks_to_watch}}
-<tr>
-<td class="email-pad" style="padding:20px 36px 20px 36px;border-bottom:1px solid #e2e7ec;">
-<div style="margin-bottom:10px;">
-<span style="display:inline-block;background-color:#0e2a47;color:#ffffff;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;padding:5px 10px;border-radius:3px;">{{ticker}}</span>
-<span style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#101418;margin-left:10px;">{{company}}</span>
-</div>
-<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#3a424b;">{{reason}}</div>
-</td>
-</tr>
-{{/each}}
 {{/if}}
 
 <!-- ============ BEFORE THE BELL ============ -->
 <tr>
 <td class="email-pad" style="padding:30px 36px 0 36px;">
-<div style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">BEFORE THE BELL</div>
-<div style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
+<div class="section-title" style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">BEFORE THE BELL</div>
+<div class="rule" style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
 </td>
 </tr>
 <tr>
@@ -134,32 +189,98 @@ const t = `<!DOCTYPE html>
 {{#each before_bell}}
 <tr>
 <td class="bb-label" valign="top" width="92" style="padding:9px 12px 9px 0;font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:1.5px;color:#0e2a47;font-weight:bold;white-space:nowrap;vertical-align:top;">{{label}}</td>
-<td valign="top" style="padding:9px 0 9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#101418;vertical-align:top;border-bottom:1px solid #e2e7ec;">{{text}}</td>
+<td class="bb-text hairline" valign="top" style="padding:9px 0 9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#101418;vertical-align:top;border-bottom:1px solid #e2e7ec;"><span style="font-weight:700;">{{level}}</span>&nbsp;<span style="font-weight:700;color:{{color}};">{{change}}</span> <span class="muted" style="color:#5b6570;">{{note_display}}</span></td>
 </tr>
 {{/each}}
 </table>
 </td>
 </tr>
+{{#if overnight_line}}
+<tr>
+<td class="email-pad" style="padding:12px 36px 8px 36px;">
+<div class="body-text" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.7;color:#3a424b;"><span class="section-title" style="font-family:Georgia,'Times New Roman',serif;font-size:11px;letter-spacing:2px;color:#0e2a47;font-weight:bold;">OVERNIGHT</span>&nbsp;&nbsp;{{overnight_line}}</div>
+</td>
+</tr>
+{{/if}}
+
+<!-- ============ PRE-MARKET MOVERS ============ -->
+{{#if premarket_movers}}
+<tr>
+<td class="email-pad" style="padding:16px 36px 4px 36px;">
+<div class="section-title" style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;margin-bottom:8px;">PRE-MARKET MOVERS</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+{{#each premarket_movers}}
+<tr>
+<td valign="top" width="76" style="padding:9px 12px 9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:{{color}};white-space:nowrap;vertical-align:top;">{{change_text}}</td>
+<td class="hairline" valign="top" style="padding:9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#101418;vertical-align:top;border-bottom:1px solid #e2e7ec;">
+<span style="font-weight:700;">{{ticker}}</span><span class="muted" style="color:#5b6570;">&nbsp;&middot;&nbsp;{{company}}</span>
+<div class="muted" style="color:#5b6570;font-size:13px;line-height:1.5;margin-top:2px;">{{reason}}</div>
+</td>
+</tr>
+{{/each}}
+</table>
+</td>
+</tr>
+{{/if}}
+
+<!-- ============ TOP NEWS ============ -->
+<tr>
+<td class="email-pad" style="padding:30px 36px 0 36px;">
+<div class="section-title" style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">TOP NEWS</div>
+<div class="rule" style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
+</td>
+</tr>
+{{#each top_news}}
+<tr>
+<td class="email-pad hairline" style="padding:20px 36px 20px 36px;border-bottom:1px solid #e2e7ec;">
+<div class="index-num" style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#b8892e;margin-bottom:8px;">{{index}}</div>
+<div class="headline" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;line-height:1.4;color:#101418;margin-bottom:6px;">{{headline}}</div>
+<div class="summary body-text" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#3a424b;">{{summary}}</div>
+</td>
+</tr>
+{{/each}}
+
+<!-- ============ STOCKS TO WATCH ============ -->
+{{#if stocks_to_watch}}
+<tr>
+<td class="email-pad" style="padding:30px 36px 0 36px;">
+<div class="section-title" style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">STOCKS TO WATCH</div>
+<div class="rule" style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
+</td>
+</tr>
+{{#each stocks_to_watch}}
+<tr>
+<td class="email-pad hairline" style="padding:20px 36px 20px 36px;border-bottom:1px solid #e2e7ec;">
+<div style="margin-bottom:10px;">
+<span class="ticker-badge" style="display:inline-block;background-color:#0e2a47;color:#ffffff;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;padding:5px 10px;border-radius:3px;">{{ticker}}</span>
+<span style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#101418;margin-left:10px;">{{company}}</span>
+</div>
+<div class="body-text" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#3a424b;">{{reason}}</div>
+</td>
+</tr>
+{{/each}}
+{{/if}}
 
 <!-- ============ TODAY'S CALENDAR ============ -->
 <tr>
 <td class="email-pad" style="padding:30px 36px 0 36px;">
-<div style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">TODAY&rsquo;S CALENDAR</div>
-<div style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
+<div class="section-title" style="font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:2.5px;color:#0e2a47;font-weight:bold;">TODAY&rsquo;S CALENDAR</div>
+<div class="rule" style="height:1px;background-color:#e2e7ec;margin:10px 0 0 0;font-size:0;line-height:0;">&nbsp;</div>
 </td>
 </tr>
 <tr>
 <td class="email-pad" style="padding:16px 36px 4px 36px;">
-<div style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;margin-bottom:6px;">EARNINGS</div>
+<div class="muted" style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;margin-bottom:6px;">EARNINGS</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 {{#each calendar_earnings}}
 <tr>
-<td valign="middle" style="padding:10px 0;border-bottom:1px solid #e2e7ec;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#101418;">
-<span style="font-weight:700;">{{ticker}}</span>
-<span style="color:#5b6570;">&nbsp;&middot;&nbsp;{{company}}</span>
+<td class="hairline" valign="middle" style="padding:10px 0;border-bottom:1px solid #e2e7ec;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#101418;">
+<a class="ticker-link" href="{{irLink}}" style="font-weight:700;color:#0e2a47;text-decoration:none;">{{ticker}}</a>
+<span class="muted" style="color:#5b6570;">&nbsp;&middot;&nbsp;{{company}}</span>
+<div class="muted" style="font-size:12px;color:#5b6570;margin-top:3px;">{{earnings_detail}}</div>
 </td>
-<td valign="middle" align="right" style="padding:10px 0 10px 12px;border-bottom:1px solid #e2e7ec;white-space:nowrap;">
-<span style="display:inline-block;background-color:#f4f6f8;border:1px solid #e2e7ec;border-radius:3px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;color:#5b6570;padding:4px 9px;">{{time}}</span>
+<td valign="middle" align="right" style="padding:10px 0 10px 12px;white-space:nowrap;">
+<span class="time-badge" style="display:inline-block;background-color:#f4f6f8;border:1px solid #e2e7ec;border-radius:3px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;color:#5b6570;padding:4px 9px;">{{time}}</span>
 </td>
 </tr>
 {{/each}}
@@ -168,12 +289,12 @@ const t = `<!DOCTYPE html>
 </tr>
 <tr>
 <td class="email-pad" style="padding:14px 36px 10px 36px;">
-<div style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;margin-bottom:6px;">ECONOMIC RELEASES</div>
+<div class="muted" style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:2px;color:#5b6570;margin-bottom:6px;">ECONOMIC RELEASES</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 {{#each calendar_econ}}
 <tr>
-<td valign="top" width="118" style="padding:9px 12px 9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#0e2a47;white-space:nowrap;vertical-align:top;">{{time_et}}</td>
-<td valign="top" style="padding:9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#101418;vertical-align:top;border-bottom:1px solid #e2e7ec;">{{event}}</td>
+<td class="econ-time" valign="top" width="118" style="padding:9px 12px 9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;color:#0e2a47;white-space:nowrap;vertical-align:top;">{{time_et}}</td>
+<td class="econ-event hairline" valign="top" style="padding:9px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#101418;vertical-align:top;border-bottom:1px solid #e2e7ec;">{{event}}</td>
 </tr>
 {{/each}}
 </table>
@@ -183,15 +304,18 @@ const t = `<!DOCTYPE html>
 <!-- ============ FOOTER ============ -->
 <tr>
 <td class="email-pad" style="padding:26px 36px 36px 36px;">
-<div style="height:1px;background-color:#e2e7ec;margin:0 0 18px 0;font-size:0;line-height:0;">&nbsp;</div>
-<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:#5b6570;margin-bottom:10px;">For informational purposes only. Not investment advice.</div>
-<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:#5b6570;margin-bottom:10px;">You&rsquo;re receiving Morning Brief because you signed up. <a href="{{unsubscribe_url}}" style="color:#0e2a47;text-decoration:underline;">Unsubscribe</a></div>
-<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:#5b6570;">&copy; 2026 Morning Brief. All rights reserved.</div>
+<div class="rule" style="height:1px;background-color:#e2e7ec;margin:0 0 18px 0;font-size:0;line-height:0;">&nbsp;</div>
+<div class="muted" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:#5b6570;margin-bottom:10px;">For informational purposes only. Not investment advice.</div>
+<div class="muted" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:#5b6570;margin-bottom:10px;">You&rsquo;re receiving Morning Brief because you signed up. <a class="footer-link" href="{{unsubscribe_url}}" style="color:#0e2a47;text-decoration:underline;">Unsubscribe</a></div>
+<div class="muted" style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.7;color:#5b6570;">&copy; 2026 Morning Brief. All rights reserved.</div>
 </td>
 </tr>
 
 </table>
 </div>
+<!--[if mso]>
+</td></tr></table>
+<![endif]-->
 
 </td>
 </tr>

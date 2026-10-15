@@ -2,7 +2,10 @@
 //
 // Replaces the mock provider with real data:
 //   topNews(runDate)   -> top 5-6 general market stories from Finnhub market news
-//   beforeBell(runDate)-> pre-market snapshot (index ETF quotes via Finnhub)
+//   beforeBell(runDate)  -> pre-market snapshot (real index/futures quotes,
+//                             structured rows; NEVER ETF proxies)
+//   overnight(runDate)   -> Asia/Europe indices {rows, line}
+//   futuresStrip(runDate)-> S&P / Nasdaq / Dow futures for the header strip
 //   calendar(runDate)  -> earnings (/calendar/earnings) + econ (/calendar/econ)
 //   mergers(runDate)   -> M&A headlines from the merger news category
 //   analysts(runDate)  -> upgrades/downgrades filtered from market news
@@ -27,6 +30,24 @@ const PUNDIT_MARKERS = /\b(cramer|illustrates the|folly of|what it means|lessons
 const QUERY_STOP = new Set(
   "the a an and or of to in on for with as at by from is are was were be been it its this that says say said after amid over under new more most up down rise rises falls while could would will just now today week says us u.s. company companies ceo inc corp co group holdings global giant deal news report reports market markets stock stocks share shares billion million trillion price target rating".split(" ")
 );
+
+/** Find a reason for a pre-market mover in the top-news pool.
+ *  Strong match: ticker symbol mentioned. Weak match: a distinctive company
+ *  name word mentioned. Returns the matched headline, or "". */
+function matchMoverReason(topNews, ticker, company) {
+  const nameWords = String(company)
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 4 && !QUERY_STOP.has(w));
+  const tick = ticker.toLowerCase();
+  let weak = "";
+  for (const s of topNews || []) {
+    const text = `${s.headline || ""} ${s.summary || ""}`.toLowerCase();
+    if (text.includes(tick)) return s.headline || "";
+    if (!weak && nameWords.some((w) => text.includes(w))) weak = s.headline || "";
+  }
+  return weak;
+}
 
 /** Build a short Unsplash query from the lead story's most distinctive words. */
 function _photoQuery(story) {
@@ -188,108 +209,75 @@ export class FinnhubMarketProvider {
     };
   }
 
-  /** Pre-market snapshot: real index values first, ETF proxies as fallback.
+  /** Pre-market snapshot: REAL indices/futures only — NO ETF proxies.
    *
-   *  Tries Finnhub index symbols (^GSPC, ^IXIC, ^DJI, ^VIX) — if the key
-   *  supports them we get real index values per Pat's no-ETF-proxies rule.
-   *  Then Alpha Vantage GLOBAL_QUOTE (free tier returns {} for indices, so
-   *  this fails fast; kept as a slot that works if AV ever supports them).
-   *  Falls back to SPY/QQQ/DIA when index quotes return no data.
-   *  Macro series (Treasury, oil, gold, dollar) stay as-is.
+   *  Uses the keyless quotes module (pipeline/lib/stooq.js: Stooq CSV first,
+   *  Yahoo Finance chart API fallback — both keyless). Returns structured
+   *  rows: [{ label, level, change, pct, note }].
+   *
+   *  If real data is unavailable the section comes back EMPTY (loud) and the
+   *  assemble quality gate blocks the send. The old SPY/QQQ/DIA (and TLT/USO/
+   *  GLD/UUP/EFA/EWJ) ETF fallback chain was deleted 2026-10-15 per Pat's
+   *  "real indices/futures, no ETF proxies" rule — a missing section is
+   *  better than a proxied one.
    */
   async beforeBell(_runDate) {
-    // Lazy import to avoid a hard dependency at module load.
-    let fetchIndexQuoteAV = null;
-    if (this.avKey) {
-      try {
-        ({ fetchIndexQuoteAV } = await import("./alphavantage.js"));
-      } catch (e) {
-        console.error("[market] beforeBell: could not load alphavantage module:", e.message);
-      }
-    }
     try {
-      // [finnhubIndexSym, avIndexSym, etfFallback, label]
-      const symbols = [
-        ["^GSPC", "SPX", "SPY", "S&P 500"],
-        ["^IXIC", "NDX", "QQQ", "Nasdaq 100"],
-        ["^DJI", "DJI", "DIA", "Dow"],
-        ["^VIX", null, null, "VIX"],
-        [null, null, "TLT", "20-Yr Treasury"],
-        [null, null, "USO", "WTI Crude"],
-        [null, null, "GLD", "Gold"],
-        [null, null, "UUP", "US Dollar"],
-        [null, null, "EFA", "Europe"],
-        [null, null, "EWJ", "Japan"],
-      ];
-      const quotes = [];
-      const usedSymbols = [];
-      for (const [indexSym, avSym, etfSym, label] of symbols) {
-        let q = null;
-        let used = null;
-        // 1. Finnhub real index symbol
-        if (indexSym) {
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              q = await this._get(`/quote?symbol=${encodeURIComponent(indexSym)}`);
-              if (q && q.c != null && q.c !== 0) {
-                used = indexSym;
-                break;
-              }
-              q = null;
-            } catch (e) {
-              if (attempt === 2) console.error(`[market] beforeBell ${indexSym} failed:`, e.message);
-              await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-            }
-          }
-          // Small delay to avoid rate limits
-          await new Promise((r) => setTimeout(r, 500));
-        }
-        // 2. Alpha Vantage index quote (free tier: fails fast with {}, cached)
-        if (!q && avSym && fetchIndexQuoteAV && this.avKey) {
-          try {
-            const avq = await fetchIndexQuoteAV(this.avKey, avSym);
-            if (avq && avq.price) {
-              q = { c: avq.price, dp: avq.changePct };
-              used = `AV:${avSym}`;
-              console.log(`[market] beforeBell ${label}: using Alpha Vantage index quote ${avSym}`);
-            }
-          } catch (e) {
-            console.error(`[market] beforeBell AV ${avSym}:`, e.message);
-          }
-        }
-        // 3. ETF fallback
-        if (!q && etfSym) {
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              q = await this._get(`/quote?symbol=${encodeURIComponent(etfSym)}`);
-              if (q && q.c != null && q.c !== 0) {
-                used = etfSym;
-                break;
-              }
-              q = null;
-            } catch (e) {
-              if (attempt === 2) console.error(`[market] beforeBell ${etfSym} failed:`, e.message);
-              await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-            }
-          }
-          await new Promise((r) => setTimeout(r, 500));
-        }
-        if (used && used !== etfSym && (indexSym || avSym)) {
-          console.log(`[market] beforeBell ${label}: using real index symbol ${used}`);
-        }
-        quotes.push(q);
-        usedSymbols.push(used);
+      const { buildBeforeBell } = await import("./stooq.js");
+      const { quotes, source } = await this._marketQuotes();
+      if (!quotes || quotes.size === 0) {
+        console.error("[market] beforeBell: NO real quote data from any source — section EMPTY (no ETF proxies per Pat's rule)");
+        return [];
       }
-      const fmt = (q, label) => {
-        if (!q || q.c == null) return null;
-        const chg = q.dp != null ? `${q.dp >= 0 ? "+" : ""}${q.dp.toFixed(2)}%` : "";
-        return { label, text: `${chg} pre-market` };
-      };
-      return symbols
-        .map(([, , , label], i) => fmt(quotes[i], label))
-        .filter(Boolean);
+      console.log(`[market] beforeBell: ${source} quotes for ${quotes.size} symbols`);
+      return buildBeforeBell(quotes);
     } catch (e) {
       console.error("[market] beforeBell:", e.message);
+      return [];
+    }
+  }
+
+  /** One quote fetch shared by beforeBell(), overnight() and futuresStrip()
+   *  so the market stage hits the keyless source once, not three times. */
+  async _marketQuotes() {
+    if (!this._quotesCache) {
+      const { fetchMarketQuotes } = await import("./stooq.js");
+      this._quotesCache = await fetchMarketQuotes();
+      if (!this._quotesCache.quotes) {
+        console.error("[market] quotes: NO real quote data from any source — market sections EMPTY (no ETF proxies per Pat's rule)");
+      }
+    }
+    return this._quotesCache;
+  }
+
+  /** Overnight block: Asia/Europe cash indices — { rows: [{label, pct}], line }.
+   *  The line ("Nikkei 225 -1.2% · ... — Europe mid-session") is rendered as
+   *  one compact block in the email and fed into the day-take thesis prompt. */
+  async overnight(_runDate) {
+    try {
+      const { buildOvernight, buildOvernightLine } = await import("./stooq.js");
+      const { quotes, source } = await this._marketQuotes();
+      const rows = buildOvernight(quotes);
+      if (rows.length === 0) {
+        console.error("[market] overnight: no data — block will be EMPTY");
+        return { rows: [], line: "" };
+      }
+      console.log(`[market] overnight: ${source}, ${rows.length} indices`);
+      return { rows, line: buildOvernightLine(rows) };
+    } catch (e) {
+      console.error("[market] overnight:", e.message);
+      return { rows: [], line: "" };
+    }
+  }
+
+  /** Futures strip: S&P / Nasdaq / Dow futures for the email header strip. */
+  async futuresStrip(_runDate) {
+    try {
+      const { buildFuturesStrip } = await import("./stooq.js");
+      const { quotes } = await this._marketQuotes();
+      return buildFuturesStrip(quotes);
+    } catch (e) {
+      console.error("[market] futuresStrip:", e.message);
       return [];
     }
   }
@@ -323,6 +311,7 @@ export class FinnhubMarketProvider {
           ticker: symbol,
           company,
           time: hourLabel(e.hour) || "Time TBA",
+          estimate: e.epsEstimate != null ? e.epsEstimate : null,
         });
         if (out.earnings.length >= 10) break;
       }
@@ -385,6 +374,48 @@ export class FinnhubMarketProvider {
     } catch (e) {
       console.error("[market] treasuryYields:", e.message);
       return null;
+    }
+  }
+
+  /** Pre-market movers: FMP biggest gainers/losers, filtered to S&P 500,
+   *  top 3 each. Reasons are matched from the top-news pool: a story whose
+   *  headline/summary mentions the ticker or company name. Returns
+   *  [{ticker, company, change_text, change_pct, direction, reason}] —
+   *  gainers first, then losers. Empty on any failure (template hides it).
+   *
+   *  NOTE: FMP restricts biggest-gainers/biggest-losers to some plan tiers
+   *  (returns {"Error Message": ...}); treat any non-array as unavailable. */
+  async premarketMovers(topNews = []) {
+    if (!this.fmpKey) return [];
+    try {
+      const [gainers, losers] = await Promise.all([
+        fetch(`https://financialmodelingprep.com/stable/biggest-gainers?apikey=${this.fmpKey}`).then((r) => r.json()),
+        fetch(`https://financialmodelingprep.com/stable/biggest-losers?apikey=${this.fmpKey}`).then((r) => r.json()),
+      ]);
+      const pick = (list, direction) =>
+        (Array.isArray(list) ? list : [])
+          .filter((q) => q && q.symbol && this.sp500.has(String(q.symbol).toUpperCase()))
+          .slice(0, 3)
+          .map((q) => {
+            const ticker = String(q.symbol).toUpperCase();
+            const company = this.sp500.get(ticker) || q.name || ticker;
+            const pct = Number(q.changesPercentage);
+            const changePct = Number.isFinite(pct) ? pct : null;
+            return {
+              ticker,
+              company,
+              change_text: changePct != null ? `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%` : "",
+              change_pct: changePct,
+              direction,
+              reason: matchMoverReason(topNews, ticker, company),
+            };
+          });
+      const out = [...pick(gainers, "up"), ...pick(losers, "down")];
+      console.log(`[market] premarketMovers: ${out.length} S&P 500 movers (${out.filter((m) => m.direction === "up").length} up, ${out.filter((m) => m.direction === "down").length} down)`);
+      return out;
+    } catch (e) {
+      console.error("[market] premarketMovers:", e.message);
+      return [];
     }
   }
 

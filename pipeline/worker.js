@@ -101,9 +101,10 @@ function buildProviders(env) {
     env.UNSPLASH_ACCESS_KEY || null,
     env.FRED_API_KEY || null
   );
-  // Alpha Vantage key attached for index-quote fallback in beforeBell().
-  // (Not a constructor param — the constructor signature is audited/locked.)
-  market.avKey = env.ALPHA_VANTAGE_API_KEY || null;
+  // (avKey was formerly attached here for the beforeBell() index-quote
+  // fallback; removed 2026-10-15 — beforeBell now uses the keyless quotes
+  // module (stooq.js) with no ETF proxies. Alpha Vantage still flows to the
+  // news provider and runMarket for the earnings calendar.)
   const news = new MultiSourceNewsProvider({
     marketauxKey: env.MARKETAUX_API_KEY || null,
     guardianKey: env.GUARDIAN_API_KEY || null,
@@ -279,7 +280,18 @@ export default {
       const { results: sends } = await env.DB.prepare(
         "SELECT status, COUNT(*) as n FROM email_sends WHERE run_date = ? GROUP BY status"
       ).bind(runDate).all();
-      return Response.json({ runDate, stages, sends });
+      // Active subscriber count — lets the Sentinel dead-man check verify
+      // that sent count roughly matches the audience (outcome-based, not
+      // just endpoint-based monitoring).
+      const subRow = await env.DB.prepare(
+        "SELECT COUNT(*) as n FROM users WHERE unsubscribed_at IS NULL"
+      ).first();
+      return Response.json({
+        runDate,
+        stages,
+        sends,
+        active_subscribers: (subRow && subRow.n) || 0,
+      });
     }
 
     return new Response("not found", { status: 404 });

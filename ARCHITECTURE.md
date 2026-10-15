@@ -147,7 +147,9 @@ support is spotty). Same layout and structure, dark palette only:
 
 `{{first_name}}`, `{{date_long}}` (e.g. "Monday, October 12, 2026"),
 `{{top_news}}` (list of {headline, summary}),
-`{{before_bell}}` (list of {label, text}: Futures, Oil, Gold, Dollar, Europe, Asia),
+`{{before_bell}}` (list of {label, level, change, color, note_display}: real index/futures quotes — futures pre-market, cash indices labeled prior close/live, VIX, 10Y, WTI/gold futures, DXY; NEVER ETF proxies),
+`{{futures_strip}}` (list of {name, level, pct, color}: S&P / Nasdaq / Dow futures header strip),
+`{{overnight_line}}` (one compact line: Asia/Europe indices, e.g. "Nikkei 225 -1.2% · ... — Europe mid-session"),
 `{{your_stocks}}` (list of {ticker, company, summary}),
 `{{calendar_earnings}}` (list of {ticker, company, time:"Before open"/"After close"}),
 `{{calendar_econ}}` (list of {time_et, event}),
