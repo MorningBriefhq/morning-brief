@@ -1,9 +1,9 @@
 // /api/archive — public newsletter archive (market sections only, no personalization).
 //   GET /api/archive -> { dates: ["2026-10-12", ...] } (newest first)
-//   GET /api/archive?date=2026-10-12 -> { date, sections: { top_news, before_bell, mergers, analysts, calendar } }
+//   GET /api/archive?date=2026-10-12 -> { date, sections: { top_news, before_bell, stocks_to_watch, futures_strip, overnight, calendar } }
 import { json } from "./_lib.js";
 
-const SECTIONS = ["top_news", "before_bell", "mergers", "analysts", "calendar", "picture"];
+const SECTIONS = ["top_news", "before_bell", "stocks_to_watch", "futures_strip", "overnight", "calendar", "picture"];
 
 export async function onRequestGet(context) {
   const { request, env } = context;

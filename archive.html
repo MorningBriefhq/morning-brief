@@ -101,7 +101,7 @@
       <div class="wrap">
         <p class="kicker">Archive</p>
         <h1>What happened that day</h1>
-        <p class="section-lede">Every edition's market overview — top stories, deals, analyst moves, and the day's calendar. No personalization, just the record.</p>
+        <p class="section-lede">Every edition's market overview — top stories, futures, stocks to watch, and the day's calendar. No personalization, just the record.</p>
 
         <div class="archive-cal-wrap">
           <div class="archive-cal-head">
@@ -200,21 +200,46 @@
       var s = data.sections;
       var html = "";
 
+      // Futures strip (new schema): compact S&P / Nasdaq / Dow futures
+      if (s.futures_strip && s.futures_strip.length) {
+        html += '<div class="archive-section"><h2>Futures</h2>' +
+          s.futures_strip.map(function (f) {
+            return '<div class="archive-cal"><span class="tick">' + esc(f.label) + '</span><span>' +
+              esc(f.level || '') + (f.change ? ' (' + esc(f.change) + ')' : '') + '</span></div>';
+          }).join("") + '</div>';
+      }
+
+      // Before the Bell (new schema: {label, level, change}; falls back to old {label, text})
       if (s.before_bell && s.before_bell.length) {
         html += '<div class="archive-section"><h2>Before the Bell</h2>' +
           s.before_bell.map(function (b) {
-            return '<div class="archive-cal"><span class="tick">' + esc(b.label) + '</span><span>' + esc(b.text) + '</span></div>';
+            var val = b.text || ((b.level || '') + (b.change ? ' (' + b.change + ')' : ''));
+            return '<div class="archive-cal"><span class="tick">' + esc(b.label) + '</span><span>' + esc(val) + '</span></div>';
           }).join("") + '</div>';
+      }
+
+      // Overnight block (new schema: {rows: [...], line: "..."})
+      if (s.overnight && ((s.overnight.rows && s.overnight.rows.length) || s.overnight.line)) {
+        html += '<div class="archive-section"><h2>Overnight</h2>';
+        if (s.overnight.line) html += '<p>' + esc(s.overnight.line) + '</p>';
+        if (s.overnight.rows && s.overnight.rows.length) {
+          html += s.overnight.rows.map(function (r) {
+            return '<div class="archive-cal"><span class="tick">' + esc(r.label || r.market) + '</span><span>' + esc(r.change || r.value || '') + '</span></div>';
+          }).join("");
+        }
+        html += '</div>';
       }
 
       html += '<div class="archive-section"><h2>Top News</h2>' + storyList(s.top_news) + '</div>';
 
-      if (s.mergers && s.mergers.length) {
-        html += '<div class="archive-section"><h2>Mergers &amp; Acquisitions</h2>' + storyList(s.mergers) + '</div>';
-      }
-
-      if (s.analysts && s.analysts.length) {
-        html += '<div class="archive-section"><h2>Analyst Moves</h2>' + storyList(s.analysts) + '</div>';
+      // Stocks to Watch (new schema: array of {ticker, company, reason})
+      if (s.stocks_to_watch && s.stocks_to_watch.length) {
+        html += '<div class="archive-section"><h2>Stocks to Watch</h2>' +
+          s.stocks_to_watch.map(function (w) {
+            return '<div class="archive-item"><h3>' + esc(w.ticker) +
+              (w.company ? ' — ' + esc(w.company) : '') + '</h3>' +
+              (w.reason ? '<p>' + esc(w.reason) + '</p>' : '') + '</div>';
+          }).join("") + '</div>';
       }
 
       var cal = s.calendar || {};

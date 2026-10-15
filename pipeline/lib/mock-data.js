@@ -110,12 +110,14 @@ export const MOCK_MARKET = {
     },
   ],
   beforeBell: [
-    { label: "Futures", text: "S&P 500 futures pointed to a modestly higher open, up about 0.3%, with Nasdaq futures outperforming on tech strength." },
-    { label: "Oil", text: "WTI crude held near recent levels as traders awaited fresh inventory data due later this week." },
-    { label: "Gold", text: "Gold edged higher as a softer dollar supported the metal ahead of key inflation readings." },
-    { label: "Dollar", text: "The dollar index slipped 0.2% as rate-cut expectations repriced across major economies." },
-    { label: "Europe", text: "European shares opened firmer, tracking overnight gains in U.S. tech and steady energy prices." },
-    { label: "Asia", text: "Asian markets closed mixed, with AI-linked shares leading gains while property developers lagged." },
+    { label: "S&P 500 Futures", level: "6,120.50", change: "+0.32%" },
+    { label: "Nasdaq 100 Futures", level: "22,450.00", change: "+0.45%" },
+    { label: "Dow Futures", level: "44,200.00", change: "+0.18%" },
+    { label: "WTI Crude", level: "$91.50", change: "+0.8%" },
+    { label: "Gold", level: "$2,650.00", change: "+0.3%" },
+    { label: "10Y Yield", level: "4.25%", change: "-2bp" },
+    { label: "VIX", level: "14.2", change: "-0.5" },
+    { label: "Dollar Index", level: "104.50", change: "-0.2%" },
   ],
   calendar: {
     earnings: [
