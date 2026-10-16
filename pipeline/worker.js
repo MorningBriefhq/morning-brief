@@ -300,7 +300,6 @@ export default {
         return new Response("unauthorized", { status: 401 });
       }
       const runDate = runDateET(new Date());
-      console.log(`[manual-trigger] running market stage for ${runDate}`);
       try {
         const result = await runMarketStage(env, runDate);
         return Response.json({ ok: true, runDate, result });

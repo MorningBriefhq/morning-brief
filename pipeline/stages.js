@@ -232,6 +232,14 @@ export async function runMarket({
     typeof market.treasuryYields === "function" ? await market.treasuryYields() : null;
   const calendar = await buildCalendar(market, runDate, alphavantageKey);
 
+  // 2. Fetch Top News clusters FIRST (before 8-Ks exhaust the subrequest budget)
+  const candidateNews =
+    news && typeof news.topNews === "function"
+      ? await news.topNews(null, null, 10)
+      : await market.topNews(runDate);
+
+  console.log(`[market] candidateNews=${candidateNews.length} news=${!!news} hasTopNews=${!!(news && news.topNews)}`);
+
   let eightKs = [];
   try {
     eightKs = await fetchRecent8Ks({ daysBack: 3, maxFilings: 12 });
@@ -248,12 +256,6 @@ export async function runMarket({
     })
     .join(" | ");
 
-  // 2. Fetch Top News clusters (oversample 10 so thin stories can be dropped)
-  const candidateNews =
-    news && typeof news.topNews === "function"
-      ? await news.topNews(null, null, 10)
-      : await market.topNews(runDate);
-
   // 3. Synthesize 80-90 word LSEG summaries from pooled sources + fullText + marketContext
   let aiFailures = 0;
   let aiAttempts = 0;
@@ -265,57 +267,31 @@ export async function runMarket({
       try {
         const sources = [];
         if (s.fullText && s.fullText.length > 100) {
-          sources.push({
-            source: `${s.source || "Primary"} (Full Text)`,
-            text: s.fullText.slice(0, 2800),
-          });
+          sources.push({ source: `${s.source || "Primary"} (Full Text)`, text: s.fullText.slice(0, 1200) });
         }
         if (Array.isArray(s.pooledSources) && s.pooledSources.length > 0) {
-          for (const ps of s.pooledSources.slice(0, 4)) {
-            const combined = [
-              ps.headline,
-              ps.summary,
-              ps.fullText ? ps.fullText.slice(0, 1200) : "",
-            ]
-              .filter(Boolean)
-              .join(" — ");
-            if (combined.length > 30) {
-              sources.push({ source: ps.source || "Wire", text: combined });
-            }
+          for (const ps of s.pooledSources.slice(0, 3)) {
+            const combined = [ps.headline, ps.summary, ps.fullText ? ps.fullText.slice(0, 500) : ""]
+              .filter(Boolean).join(" — ");
+            if (combined.length > 30) sources.push({ source: ps.source || "Wire", text: combined });
           }
-        } else if (s.summary) {
-          sources.push({ source: s.source || "Summary", text: s.summary.slice(0, 1500) });
         }
-
-        if (sources.length === 0 && s.headline) {
-          sources.push({ source: s.source || "Headline", text: s.headline });
-        }
+        if (s.summary) sources.push({ source: s.source || "Summary", text: s.summary.slice(0, 1000) });
+        if (sources.length === 0 && s.headline) sources.push({ source: "Headline", text: s.headline });
         if (sources.length === 0) continue;
         aiAttempts++;
-        const inputLen = sources.reduce((n, src) => n + (src.text || "").length, 0);
         const raw = await summarizer.summarizeStory(s.headline, sources, marketContext);
         const capped = capSummary(raw, 680, 5);
-
-        if (capped.length < 180) {
-          console.warn(
-            `[market] thin summary for "${(s.headline || "").slice(0, 80)}": ` +
-              `input ${inputLen} chars -> summary${capped.length} chars`
-          );
-          // Skip thin stories if we still have other candidates in the pool
-          if (candidateNews.length > 5 && topNews.length < 5) continue;
-        }
-        s.summary = capped;
-        delete s.pooledSources; // keep D1 payload clean
+        s.summary = capped || s.summary || s.headline;
+        delete s.pooledSources;
         topNews.push(s);
       } catch (e) {
         aiFailures++;
         console.error("[market] story summary failed:", e.message);
         const fallback = extractiveSummary(s, 100);
-        if (fallback && fallback.length >= 150) {
-          s.summary = capSummary(fallback, 680, 5);
-          delete s.pooledSources;
-          topNews.push(s);
-        }
+        s.summary = capSummary(fallback || s.summary || s.headline, 680, 5);
+        delete s.pooledSources;
+        topNews.push(s);
       }
     }
   } else {
