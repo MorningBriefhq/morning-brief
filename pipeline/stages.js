@@ -287,6 +287,9 @@ export async function runMarket({
           sources.push({ source: s.source || "Summary", text: s.summary.slice(0, 1500) });
         }
 
+        if (sources.length === 0 && s.headline) {
+          sources.push({ source: s.source || "Headline", text: s.headline });
+        }
         if (sources.length === 0) continue;
         aiAttempts++;
         const inputLen = sources.reduce((n, src) => n + (src.text || "").length, 0);

@@ -112,7 +112,7 @@ function buildProviders(env) {
     alphavantageKey: env.ALPHA_VANTAGE_API_KEY || null,
   });
   const summarizer = env.AI
-    ? new WorkersAISummarizer(env.AI, env.WORKERS_AI_MODEL || "@cf/meta/llama-3.1-8b-instruct")
+    ? new WorkersAISummarizer(env.AI, "@cf/meta/llama-3.3-70b-instruct-fp8-fast")
     : new MockSummarizer();
   const sender = env.RESEND_API_KEY
     ? new ResendSender(env.RESEND_API_KEY, env.BRIEFING_FROM || "briefing@morningbrief.link")
@@ -292,6 +292,21 @@ export default {
         sends,
         active_subscribers: (subRow && subRow.n) || 0,
       });
+    }
+
+    // Manual market-stage trigger (temporary, for testing) — admin auth required
+    if (url.pathname === "/admin/trigger-market") {
+      if (!isAdminAuthorized(request, env)) {
+        return new Response("unauthorized", { status: 401 });
+      }
+      const runDate = runDateET(new Date());
+      console.log(`[manual-trigger] running market stage for ${runDate}`);
+      try {
+        const result = await runMarketStage(env, runDate);
+        return Response.json({ ok: true, runDate, result });
+      } catch (e) {
+        return Response.json({ ok: false, error: e.message }, { status: 500 });
+      }
     }
 
     return new Response("not found", { status: 404 });
