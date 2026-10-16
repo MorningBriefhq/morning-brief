@@ -112,7 +112,7 @@ function buildProviders(env) {
     alphavantageKey: env.ALPHA_VANTAGE_API_KEY || null,
   });
   const summarizer = env.AI
-    ? new WorkersAISummarizer(env.AI, "@cf/meta/llama-3.3-70b-instruct-fp8-fast")
+    ? new WorkersAISummarizer(env.AI, "@cf/meta/llama-3.2-3b-instruct")
     : new MockSummarizer();
   const sender = env.RESEND_API_KEY
     ? new ResendSender(env.RESEND_API_KEY, env.BRIEFING_FROM || "briefing@morningbrief.link")
