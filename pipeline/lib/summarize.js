@@ -11,9 +11,23 @@ export function truncateWords(text, maxWords) {
  * Cap a story summary to ~80-95 words (~680 chars / up to 5 sentences) for LSEG density.
  * Always terminates on a complete sentence boundary whenever >= 2 sentences fit.
  */
+export function decodeEntities(text) {
+  if (!text) return text;
+  return text
+    .replace(/&#x27;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#x2019;/g, "'")
+    .replace(/&#x2014;/g, "—")
+    .replace(/&#x2013;/g, "–");
+}
+
 export function capSummary(text, maxChars = 680, maxSentences = 5) {
   if (!text) return text;
-  const cleaned = text
+  const cleaned = decodeEntities(text)
     .replace(/\*\*(what happened|why it matters|what's next|what to watch|summary)[:\s]*\*\*/gi, "")
     .replace(/^(what happened|why it matters|what's next|what to watch|summary)\s*:\s*/gim, "")
     .replace(/\s+/g, " ")

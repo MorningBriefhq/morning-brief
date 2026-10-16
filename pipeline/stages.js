@@ -11,7 +11,7 @@
 
 import { signToken } from "./lib/sign.js";
 import { renderTemplate } from "./lib/render.js";
-import { truncateWords, capSummary } from "./lib/summarize.js";
+import { truncateWords, capSummary, decodeEntities } from "./lib/summarize.js";
 import { fetchEconCalendar } from "./lib/econ.js";
 import { fetchRecent8Ks } from "./lib/edgar.js";
 import { fetchEarningsCalendarAV } from "./lib/alphavantage.js";
@@ -32,7 +32,7 @@ export class QualityBlockedError extends Error {
  *  Used ONLY when AI summarization fails — better than shipping empty.
  *  (Pat's rule is our-voice synthesis; this is a safety net, not the path.) */
 function extractiveSummary(story, maxWords = 150) {
-  const text = (story.fullText || story.summary || "").trim();
+  const text = decodeEntities(story.fullText || story.summary || "").trim();
   if (!text) return "";
   const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 30);
   return truncateWords(sentences.slice(0, 3).join(" "), maxWords);
@@ -262,37 +262,50 @@ export async function runMarket({
   const topNews = [];
 
   if (summarizer && typeof summarizer.summarizeStory === "function") {
-    for (const s of candidateNews) {
-      if (topNews.length >= 6) break;
-      try {
-        const sources = [];
-        if (s.fullText && s.fullText.length > 100) {
-          sources.push({ source: `${s.source || "Primary"} (Full Text)`, text: s.fullText.slice(0, 1200) });
-        }
-        if (Array.isArray(s.pooledSources) && s.pooledSources.length > 0) {
-          for (const ps of s.pooledSources.slice(0, 3)) {
-            const combined = [ps.headline, ps.summary, ps.fullText ? ps.fullText.slice(0, 500) : ""]
-              .filter(Boolean).join(" — ");
-            if (combined.length > 30) sources.push({ source: ps.source || "Wire", text: combined });
-          }
-        }
-        if (s.summary) sources.push({ source: s.source || "Summary", text: s.summary.slice(0, 1000) });
-        if (sources.length === 0 && s.headline) sources.push({ source: "Headline", text: s.headline });
-        if (sources.length === 0) continue;
-        aiAttempts++;
-        const raw = await summarizer.summarizeStory(s.headline, sources, marketContext);
-        const capped = capSummary(raw, 680, 5);
-        s.summary = capped || s.summary || s.headline;
-        delete s.pooledSources;
-        topNews.push(s);
-      } catch (e) {
-        aiFailures++;
-        console.error("[market] story summary failed:", e.message);
-        const fallback = extractiveSummary(s, 100);
-        s.summary = capSummary(fallback || s.summary || s.headline, 680, 5);
-        delete s.pooledSources;
-        topNews.push(s);
+    // Build source lists for all candidates first (sync)
+    const jobs = [];
+    for (const s of candidateNews.slice(0, 8)) {
+      const sources = [];
+      if (s.fullText && s.fullText.length > 100) {
+        sources.push({ source: `${s.source || "Primary"} (Full Text)`, text: s.fullText.slice(0, 1200) });
       }
+      if (Array.isArray(s.pooledSources) && s.pooledSources.length > 0) {
+        for (const ps of s.pooledSources.slice(0, 3)) {
+          const combined = [ps.headline, ps.summary, ps.fullText ? ps.fullText.slice(0, 500) : ""]
+            .filter(Boolean).join(" — ");
+          if (combined.length > 30) sources.push({ source: ps.source || "Wire", text: combined });
+        }
+      }
+      if (s.summary) sources.push({ source: s.source || "Summary", text: s.summary.slice(0, 1000) });
+      if (sources.length === 0 && s.headline) sources.push({ source: "Headline", text: s.headline });
+      if (sources.length === 0) continue;
+      jobs.push({ story: s, sources });
+    }
+
+    // Fire all AI calls in parallel to beat the Worker timeout
+    aiAttempts = jobs.length;
+    const results = await Promise.allSettled(
+      jobs.map(async ({ story, sources }) => {
+        const raw = await summarizer.summarizeStory(story.headline, sources, marketContext);
+        return { story, summary: capSummary(raw, 680, 5) };
+      })
+    );
+
+    for (let i = 0; i < results.length; i++) {
+      const { story } = jobs[i];
+      const r = results[i];
+      if (r.status === "fulfilled" && r.value.summary) {
+        story.summary = r.value.summary;
+      } else {
+        aiFailures++;
+        if (r.status === "rejected") {
+          console.error("[market] story summary failed:", r.reason?.message || r.reason);
+        }
+        const fallback = extractiveSummary(story, 100);
+        story.summary = capSummary(fallback || story.summary || story.headline, 680, 5);
+      }
+      delete story.pooledSources;
+      if (topNews.length < 6) topNews.push(story);
     }
   } else {
     topNews.push(...candidateNews.slice(0, 6));

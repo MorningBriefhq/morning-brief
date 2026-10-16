@@ -294,20 +294,6 @@ export default {
       });
     }
 
-    // Manual market-stage trigger (temporary, for testing) — admin auth required
-    if (url.pathname === "/admin/trigger-market") {
-      if (!isAdminAuthorized(request, env)) {
-        return new Response("unauthorized", { status: 401 });
-      }
-      const runDate = runDateET(new Date());
-      try {
-        const result = await runMarketStage(env, runDate);
-        return Response.json({ ok: true, runDate, result });
-      } catch (e) {
-        return Response.json({ ok: false, error: e.message }, { status: 500 });
-      }
-    }
-
     return new Response("not found", { status: 404 });
   },
 };
