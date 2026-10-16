@@ -152,34 +152,29 @@ export class WorkersAISummarizer extends Summarizer {
   }
 
   /**
-   * Synthesize a single news story cluster from MULTIPLE pooled sources into an 80-90 word
-   * LSEG Morning News Call paragraph: WHAT HAPPENED + WHY IT MATTERS + WHAT NEXT.
+   * Synthesize a story into 2 strict sentences for the 3B model.
+   * Sentence 1: What happened with exact numbers and attribution.
+   * Sentence 2: Why it matters to sectors/rates.
    */
   async summarizeStory(headline, sources, marketContext = "") {
     const sourceText = Array.isArray(sources)
       ? sources
-          .map((s, i) => `[Source ${i + 1} — ${s.source || "Wire"}]:\n${s.text || ""}`)
-          .join("\n\n")
-      : String(sources || "");
+          .slice(0, 2)
+          .map((s) => (s.text || "").slice(0, 500))
+          .join("\n")
+      : String(sources || "").slice(0, 1000);
 
     const systemPrompt =
-      "You are the senior markets editor of Morning Brief, writing in the exact institutional style of the LSEG Morning News Call. " +
-      "Synthesize the pooled source material into ONE cohesive paragraph of 75 to 95 words (3 to 4 dense sentences). " +
-      "Follow this strict 3-part progression without using section labels or bullet points:\n" +
-      "1. WHAT HAPPENED (Sentences 1-2): Lead with the concrete action, policy move, or corporate announcement. Include exact numbers, dollar figures, percentages, basis points, and clear attribution ('the company said', 'according to an SEC filing', 'central bank data showed').\n" +
-      "2. WHY IT MATTERS (Sentence 3): State the specific financial mechanism linking this event to S&P 500 earnings, sector margins, interest-rate pricing, or supply chains.\n" +
-      "3. WHAT NEXT (Sentence 4): Name the concrete upcoming catalyst, effective date, vote, earnings call, or scheduled economic print.\n" +
-      "STRICT RULES: Never repeat the headline verbatim. Never use dramatic verbs ('plummeted', 'skyrocketed', 'cratered'). " +
-      "Never write empty filler ('investors will closely watch', 'underscores worries', 'fueled skepticism', 'sets the tone'). " +
-      "If Live Market Context is provided, ensure any asset price references align with current pre-market levels. Never give investment advice.";
+      "You write 2-sentence market news summaries. Sentence 1: what happened, with exact numbers " +
+      "and attribution (e.g. 'the company said', 'according to filings'). Sentence 2: why it matters " +
+      "for sectors or interest rates. No filler, no advice, no dramatic verbs.";
 
     const userPrompt =
-      `Write an 80-90 word LSEG-style synthesis paragraph for this story cluster.\n\n` +
-      `Lead Headline: ${headline}\n` +
-      (marketContext ? `Live Pre-Market Quotes (ground truth): ${marketContext}\n` : "") +
-      `\nPooled Wire & Article Sources:\n${sourceText || "(no additional details)"}`;
+      `Headline: ${headline}\n` +
+      `Context: ${sourceText || "(no details)"}\n` +
+      `Write exactly 2 sentences.`;
 
-    return this.complete(systemPrompt, userPrompt, { maxTokens: 320, temperature: 0.15 });
+    return this.complete(systemPrompt, userPrompt, { maxTokens: 150, temperature: 0.1 });
   }
 }
 
@@ -231,12 +226,13 @@ export class AnthropicSummarizer extends Summarizer {
 
   async summarizeStory(headline, sources, marketContext = "") {
     const sourceText = Array.isArray(sources)
-      ? sources.map((s, i) => `[Source ${i + 1} — ${s.source || "Wire"}]:\n${s.text || ""}`).join("\n\n")
-      : String(sources || "");
+      ? sources.slice(0, 2).map((s) => (s.text || "").slice(0, 500)).join("\n")
+      : String(sources || "").slice(0, 1000);
     return this.complete(
-      "You are the senior markets editor of Morning Brief (LSEG Morning News Call style). Write one dense 80-90 word paragraph covering WHAT happened (with numbers and attribution), WHY it matters (the market/earnings mechanism), and WHAT is next (the specific catalyst).",
-      `Headline: ${headline}\n${marketContext ? `Live Quotes: ${marketContext}\n` : ""}\nSources:\n${sourceText}`,
-      { maxTokens: 320 }
+      "You write 2-sentence market news summaries. Sentence 1: what happened, with exact numbers " +
+      "and attribution. Sentence 2: why it matters for sectors or interest rates. No filler, no advice.",
+      `Headline: ${headline}\nContext: ${sourceText || "(no details)"}\nWrite exactly 2 sentences.`,
+      { maxTokens: 150 }
     );
   }
 }
