@@ -20,3 +20,7 @@ node_modules/
 
 # Test scripts with hardcoded keys (compromised — do not re-add)
 test-run.js
+
+# Admin key - never commit
+pipeline/.admin-key
+.admin-key
