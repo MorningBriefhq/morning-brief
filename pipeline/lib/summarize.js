@@ -1,18 +1,5 @@
-// Morning Brief pipeline — per-ticker summarizers.
-//
-// Interface: summarize(ticker, company, articles) -> string (2-3 sentences,
-// neutral, news-only — never advice). Summaries are generated ONCE per ticker
-// per day and shared across all users holding that ticker (see stages.js).
-//
-// MockSummarizer: deterministic extractive summary for testing.
-// WorkersAISummarizer: real LLM summaries via Cloudflare Workers AI (free tier,
-// no API key — the default when deployed with the `ai` binding).
-// AnthropicSummarizer: fallback, needs ANTHROPIC_API_KEY.
-//   Model is env-configurable (SUMMARIZER_MODEL); check current model IDs at
-//   https://docs.anthropic.com/en/docs/about-claude/models/overview
+// Morning Brief pipeline — AI synthesis & summarization engine.
 
-// Hard word caps: brevity is a constraint, not a suggestion.
-// "Useful information, no bullshit, packed."
 export function truncateWords(text, maxWords) {
   if (!text) return text;
   const words = text.trim().split(/\s+/);
@@ -20,21 +7,42 @@ export function truncateWords(text, maxWords) {
   return words.slice(0, maxWords).join(" ");
 }
 
-/** Cap a story summary to ~140 chars / 2 sentences for the email layout.
- *  Takes the first 2 substantive sentences, then trims to the last word
- *  boundary at or under maxChars. Used by stages.js so the email and text
- *  versions share the same capped copy. */
-export function capSummary(text, maxChars = 140, maxSentences = 2) {
+/**
+ * Cap a story summary to ~80-95 words (~680 chars / up to 5 sentences) for LSEG density.
+ * Always terminates on a complete sentence boundary whenever >= 2 sentences fit.
+ */
+export function capSummary(text, maxChars = 680, maxSentences = 5) {
   if (!text) return text;
-  const sentences = text
-    .trim()
+  const cleaned = text
+    .replace(/\*\*(what happened|why it matters|what's next|what to watch|summary)[:\s]*\*\*/gi, "")
+    .replace(/^(what happened|why it matters|what's next|what to watch|summary)\s*:\s*/gim, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const sentences = cleaned
     .split(/(?<=[.!?])\s+/)
     .filter((s) => s.trim().length > 0);
-  let out = sentences.slice(0, maxSentences).join(" ").trim();
+
+  let out = "";
+  let count = 0;
+  for (const s of sentences) {
+    if (count >= maxSentences) break;
+    const candidate = out ? `${out}${s}` : s;
+    if (candidate.length > maxChars && count >= 2) break;
+    out = candidate;
+    count++;
+  }
+
+  if (!out) out = cleaned;
   if (out.length > maxChars) {
     const cut = out.slice(0, maxChars);
-    const lastSpace = cut.lastIndexOf(" ");
-    out = (lastSpace > maxChars * 0.6 ? cut.slice(0, lastSpace) : cut).trim();
+    const lastPeriod = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+    if (lastPeriod > maxChars * 0.5) {
+      out = cut.slice(0, lastPeriod + 1).trim();
+    } else {
+      const lastSpace = cut.lastIndexOf(" ");
+      out = (lastSpace > maxChars * 0.6 ? cut.slice(0, lastSpace) : cut).trim() + ".";
+    }
   }
   return out;
 }
@@ -42,6 +50,12 @@ export function capSummary(text, maxChars = 140, maxSentences = 2) {
 export class Summarizer {
   async summarize(_ticker, _company, _articles) {
     throw new Error("Summarizer.summarize not implemented");
+  }
+  async summarizeStory(_headline, _sources, _marketContext) {
+    throw new Error("Summarizer.summarizeStory not implemented");
+  }
+  async complete(_systemPrompt, _userPrompt, _options) {
+    throw new Error("Summarizer.complete not implemented");
   }
 }
 
@@ -59,97 +73,99 @@ export class MockSummarizer extends Summarizer {
   }
 
   async summarizeStory(headline, sources) {
-    // Handle both string (old) and array (new) formats
     let text = "";
     if (Array.isArray(sources)) {
       text = sources.map((s) => s.text || "").join(" ").trim();
     } else {
       text = (sources || headline || "").trim();
     }
-    // Return a substantive mock summary (capped downstream by capSummary)
     const base = text.split(/(?<=[.!?])\s/)[0].trim() || headline;
-    // Pad to ensure it passes the 200-char quality threshold in tests
-    if (base.length < 220) {
-      return base + " This development has significant implications for investors watching the sector. Market participants are closely monitoring follow-through in upcoming trading sessions and earnings reports for confirmation of the trend.";
+    if (base.length < 300) {
+      return (
+        base +
+        " The announcement reshapes near-term capital allocation and margin expectations across the sector, according to company filings. " +
+        "Institutional desks are repricing forward earnings estimates ahead of next week's quarterly disclosures and management guidance updates."
+      );
     }
     return base;
   }
+
+  async complete(_systemPrompt, userPrompt) {
+    if (userPrompt && userPrompt.includes("JSON array")) {
+      return JSON.stringify([
+        {
+          ticker: "TRV",
+          company: "Travelers Companies Inc",
+          reason: "Travelers is scheduled to report Q3 earnings before the opening bell with consensus EPS estimated at $3.65, according to company filings.",
+        },
+      ]);
+    }
+    return "US equity futures steadied before the bell as Treasury yields eased and investors weighed corporate earnings against upcoming Federal Reserve commentary.";
+  }
 }
 
-// WorkersAISummarizer: real LLM summaries via Cloudflare Workers AI (free tier).
-// Needs the `ai` binding (see wrangler.toml). Model is env-configurable
-// (WORKERS_AI_MODEL). This is the default when deployed — no API key needed.
 export class WorkersAISummarizer extends Summarizer {
   constructor(aiBinding, model) {
     super();
     this.ai = aiBinding;
     this.model = model || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
   }
-  async summarize(ticker, company, articles) {
-    const items = articles
-      .slice(0, 8)
-      .map((a, i) => `[${i + 1}] ${a.source}: ${a.headline}\n${a.summary || ""}`)
-      .join("\n\n");
+
+  async complete(systemPrompt, userPrompt, { maxTokens = 800, temperature = 0.15 } = {}) {
     const res = await this.ai.run(this.model, {
       messages: [
-        {
-          role: "system",
-          content:
-            "You write Morning Brief summaries for investors. " +
-            "Deliver the key information: what happened, specific numbers/names, why it matters. " +
-            "Be dense and factual. Never give investment advice.",
-        },
-        {
-          role: "user",
-          content:
-            `Summarize the overnight news for ${company} (${ticker}). ` +
-            `Include WHAT happened with specifics and WHY IT MATTERS to investors.\n\n` +
-            items,
-        },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
-      max_tokens: 300,
+      max_tokens: maxTokens,
+      temperature,
     });
     const text = (res.response || "").trim();
     if (!text) throw new Error("workers-ai returned no text");
     return text;
   }
 
-  /** Summarize a single news story from MULTIPLE sources: synthesize, don't regurgitate. */
-  async summarizeStory(headline, sources) {
-    // sources: array of {source, text} — we synthesize across them
+  async summarize(ticker, company, articles) {
+    const items = articles
+      .slice(0, 8)
+      .map((a, i) => `[${i + 1}]${a.source}: ${a.headline}\n${a.summary || ""}`)
+      .join("\n\n");
+    return this.complete(
+      "You write Morning Brief summaries for institutional investors. Deliver what happened with specific numbers/names, why it matters, and what is next. Be dense and factual. Never give investment advice.",
+      `Summarize the overnight news for ${company} (${ticker}) in 60-80 words.\n\n${items}`,
+      { maxTokens: 300, temperature: 0.15 }
+    );
+  }
+
+  /**
+   * Synthesize a single news story cluster from MULTIPLE pooled sources into an 80-90 word
+   * LSEG Morning News Call paragraph: WHAT HAPPENED + WHY IT MATTERS + WHAT NEXT.
+   */
+  async summarizeStory(headline, sources, marketContext = "") {
     const sourceText = Array.isArray(sources)
-      ? sources.map((s, i) => `Source ${i + 1}:\n${s.text || ""}`).join("\n\n")
-      : sources;
-    const res = await this.ai.run(this.model, {
-      messages: [
-        {
-          role: "system",
-          content:
-            "You write news summaries for a morning investor briefing, in the style of LSEG Morning News Call. " +
-            "State what happened with specific facts: numbers, names, dates, quotes. " +
-            "Attribute sources: 'the company said,' 'according to,' 'the regulator said.' " +
-            "Write in plain, direct language. No dramatic verbs (plummeted, nosedived, cratered). " +
-            "No commentary on why it matters. No 'what to watch.' No speculation. " +
-            "Just the facts, densely packed. Never give investment advice.",
-        },
-        {
-          role: "user",
-          content:
-            `Write an ORIGINAL summary for an investor morning brief, synthesizing these sources. ` +
-            `Report WHAT HAPPENED — the underlying facts that markets are reacting to. ` +
-            `State who said what, who did what, with specific numbers, names, dates, and quotes. ` +
-            `DO NOT describe reactions: no "investors dumped," "shares plummeted amid concerns," "fueled skepticism," "underscores worries." ` +
-            `DO NOT explain why it matters or what to watch. Just the facts.\n` +
-            `Example: "Broadcom CEO Hock Tan said [quote] at [event]. Samsung reported Q3 revenue of $X. The IMF published its Global Financial Stability Report warning [specific finding]."\n\n` +
-            `Headline: ${headline}\n\n` +
-            `${sourceText || "(no additional details)"}`,
-        },
-      ],
-      max_tokens: 450,
-    });
-    const text = (res.response || "").trim();
-    if (!text) throw new Error("workers-ai returned no text");
-    return text;
+      ? sources
+          .map((s, i) => `[Source ${i + 1} — ${s.source || "Wire"}]:\n${s.text || ""}`)
+          .join("\n\n")
+      : String(sources || "");
+
+    const systemPrompt =
+      "You are the senior markets editor of Morning Brief, writing in the exact institutional style of the LSEG Morning News Call. " +
+      "Synthesize the pooled source material into ONE cohesive paragraph of 75 to 95 words (3 to 4 dense sentences). " +
+      "Follow this strict 3-part progression without using section labels or bullet points:\n" +
+      "1. WHAT HAPPENED (Sentences 1-2): Lead with the concrete action, policy move, or corporate announcement. Include exact numbers, dollar figures, percentages, basis points, and clear attribution ('the company said', 'according to an SEC filing', 'central bank data showed').\n" +
+      "2. WHY IT MATTERS (Sentence 3): State the specific financial mechanism linking this event to S&P 500 earnings, sector margins, interest-rate pricing, or supply chains.\n" +
+      "3. WHAT NEXT (Sentence 4): Name the concrete upcoming catalyst, effective date, vote, earnings call, or scheduled economic print.\n" +
+      "STRICT RULES: Never repeat the headline verbatim. Never use dramatic verbs ('plummeted', 'skyrocketed', 'cratered'). " +
+      "Never write empty filler ('investors will closely watch', 'underscores worries', 'fueled skepticism', 'sets the tone'). " +
+      "If Live Market Context is provided, ensure any asset price references align with current pre-market levels. Never give investment advice.";
+
+    const userPrompt =
+      `Write an 80-90 word LSEG-style synthesis paragraph for this story cluster.\n\n` +
+      `Lead Headline: ${headline}\n` +
+      (marketContext ? `Live Pre-Market Quotes (ground truth): ${marketContext}\n` : "") +
+      `\nPooled Wire & Article Sources:\n${sourceText || "(no additional details)"}`;
+
+    return this.complete(systemPrompt, userPrompt, { maxTokens: 320, temperature: 0.15 });
   }
 }
 
@@ -159,18 +175,8 @@ export class AnthropicSummarizer extends Summarizer {
     this.apiKey = apiKey;
     this.model = model || "claude-haiku-4-5";
   }
-  async summarize(ticker, company, articles) {
-    const items = articles
-      .slice(0, 8)
-      .map((a, i) => `[${i + 1}] ${a.source}: ${a.headline}\n${a.summary || ""}`)
-      .join("\n\n");
-    const prompt =
-      `Summarize the overnight news for ${company} (${ticker}) in 2-3 tight sentences, ` +
-      `suitable for a morning investor briefing. Neutral tone, facts only from the articles below. ` +
-      `Include WHAT happened and WHY IT MATTERS (the mechanism, not just the fact). ` +
-      `If a price move is mentioned, note whether it's large or normal for this stock. ` +
-      `Do not give investment advice or recommendations. If the articles are thin, say what is known briefly.\n\n` +
-      items;
+
+  async complete(systemPrompt, userPrompt, { maxTokens = 600, temperature = 0.15 } = {}) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -180,11 +186,13 @@ export class AnthropicSummarizer extends Summarizer {
       },
       body: JSON.stringify({
         model: this.model,
-        max_tokens: 220,
-        messages: [{ role: "user", content: prompt }],
+        max_tokens: maxTokens,
+        temperature,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
       }),
     });
-    if (!res.ok) throw new Error(`anthropic ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    if (!res.ok) throw new Error(`anthropic ${res.status}:${(await res.text()).slice(0, 200)}`);
     const data = await res.json();
     const text = (data.content || [])
       .filter((b) => b.type === "text")
@@ -195,33 +203,26 @@ export class AnthropicSummarizer extends Summarizer {
     return text;
   }
 
-  async summarizeStory(headline, snippet) {
-    const prompt =
-      `In 2-3 tight sentences, explain what happened in this story and why it matters to markets. ` +
-      `Neutral tone, facts only. Never repeat the headline — explain what actually happened.\n\n` +
-      `Headline: ${headline}\n` +
-      `Details: ${snippet || "(no additional details)"}`;
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": this.apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: 180,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    if (!res.ok) throw new Error(`anthropic ${res.status}`);
-    const data = await res.json();
-    const text = (data.content || [])
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join(" ")
-      .trim();
-    if (!text) throw new Error("anthropic returned no text");
-    return text;
+  async summarize(ticker, company, articles) {
+    const items = articles
+      .slice(0, 8)
+      .map((a, i) => `[${i + 1}]${a.source}: ${a.headline}\n${a.summary || ""}`)
+      .join("\n\n");
+    return this.complete(
+      "You write Morning Brief summaries for institutional investors. Neutral tone, facts only.",
+      `Summarize the overnight news for ${company} (${ticker}) in 3 tight sentences (what happened, why it matters, what's next).\n\n${items}`,
+      { maxTokens: 250 }
+    );
+  }
+
+  async summarizeStory(headline, sources, marketContext = "") {
+    const sourceText = Array.isArray(sources)
+      ? sources.map((s, i) => `[Source ${i + 1} — ${s.source || "Wire"}]:\n${s.text || ""}`).join("\n\n")
+      : String(sources || "");
+    return this.complete(
+      "You are the senior markets editor of Morning Brief (LSEG Morning News Call style). Write one dense 80-90 word paragraph covering WHAT happened (with numbers and attribution), WHY it matters (the market/earnings mechanism), and WHAT is next (the specific catalyst).",
+      `Headline: ${headline}\n${marketContext ? `Live Quotes: ${marketContext}\n` : ""}\nSources:\n${sourceText}`,
+      { maxTokens: 320 }
+    );
   }
 }

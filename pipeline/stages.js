@@ -211,166 +211,275 @@ async function buildCalendar(market, runDate, alphavantageKey = null) {
   return out;
 }
 
-export async function runMarket({ db, market, news, runDate, nowSec, summarizer = null, alphavantageKey = null }) {
-  // Use the multi-source news provider (Marketaux + Guardian + RSS) for Top News.
-  // Falls back to market.topNews (Finnhub) if no news provider.
-  const topNews = news && typeof news.topNews === "function"
-    ? await news.topNews(null, null, 8)
-    : await market.topNews(runDate);
+export async function runMarket({
+  db,
+  market,
+  news,
+  runDate,
+  nowSec,
+  summarizer = null,
+  alphavantageKey = null,
+}) {
+  // 1. Fetch hard market quotes, calendar, and SEC 8-Ks FIRST so AI synthesis has live market ground truth
+  const beforeBell = await market.beforeBell(runDate);
+  const futuresStrip =
+    typeof market.futuresStrip === "function" ? await market.futuresStrip(runDate) : [];
+  const overnight =
+    typeof market.overnight === "function"
+      ? await market.overnight(runDate)
+      : { rows: [], line: "" };
+  const treasuryYields =
+    typeof market.treasuryYields === "function" ? await market.treasuryYields() : null;
+  const calendar = await buildCalendar(market, runDate, alphavantageKey);
 
-  // Enrich stories with synthesized summaries from MULTIPLE sources.
-  // We pool Marketaux, Guardian, RSS — the AI synthesizes into our own voice.
-  // Prefer the fullest text available (Guardian bodyText) as the primary source;
-  // the short snippet is backup context. Skip URL scraping (too slow).
-  // If AI fails for a story, fall back to extractive so we never ship "".
-  let aiFailures = 0;
-  let aiAttempts = 0;
-  if (summarizer && typeof summarizer.summarizeStory === "function") {
-    for (const s of topNews) {
-      try {
-        // Use API-provided text only — no slow URL scraping.
-        // Full text first (Guardian bodyText is the richest), snippet second.
-        const sources = [];
-        if (s.fullText) sources.push({ source: "full-text", text: s.fullText.slice(0, 2000) });
-        if (s.summary) sources.push({ source: "summary", text: s.summary.slice(0, 1500) });
-        if (sources.length === 0) continue;
-        aiAttempts++;
-        const inputLen = sources.reduce((n, src) => n + (src.text || "").length, 0);
-        const raw = await summarizer.summarizeStory(s.headline, sources);
-        const capped = capSummary(raw);
-        if (capped.length < 100) {
-          // Thinness made visible: log input length next to the short summary.
-          console.warn(
-            `[market] thin summary for "${(s.headline || "").slice(0, 80)}": ` +
-            `input ${inputLen} chars -> summary ${capped.length} chars`
-          );
-        }
-        s.summary = capped;
-      } catch (e) {
-        aiFailures++;
-        console.error("[market] story summary failed:", e.message);
-        // Extractive fallback — never leave summary empty
-        const fallback = extractiveSummary(s);
-        if (fallback) s.summary = capSummary(fallback);
-      }
-    }
-  }
-  if (aiAttempts > 0 && aiFailures === aiAttempts) {
-    console.error(`[market] ALL ${aiAttempts} AI summaries failed for ${runDate} — check Workers AI binding/model. Using extractive fallbacks.`);
-  }
-
-  const sections = {
-    top_news: topNews,
-    before_bell: await market.beforeBell(runDate),
-    // Futures strip (email header) + overnight block (Asia/Europe): real
-    // index/futures quotes from the same keyless fetch. Missing providers
-    // degrade to empty sections, never ETF proxies.
-    futures_strip: typeof market.futuresStrip === "function" ? await market.futuresStrip(runDate) : [],
-    overnight: typeof market.overnight === "function" ? await market.overnight(runDate) : { rows: [], line: "" },
-    treasury_yields: typeof market.treasuryYields === "function" ? await market.treasuryYields() : null,
-    calendar: await buildCalendar(market, runDate, alphavantageKey),
-    picture: typeof market.pictureOfTheDay === "function" ? await market.pictureOfTheDay(topNews, summarizer) : null,
-    premarket_movers: typeof market.premarketMovers === "function" ? await market.premarketMovers(topNews) : [],
-  };
-
-  // SEC EDGAR 8-Ks: "what companies did/said/announced" — the highest-signal
-  // free source for Stocks to Watch. Authoritative, no key.
   let eightKs = [];
   try {
     eightKs = await fetchRecent8Ks({ daysBack: 3, maxFilings: 12 });
-    if (eightKs.length > 0) {
-      sections.eight_ks = eightKs;
-    }
   } catch (e) {
     console.error("[market] edgar 8-Ks:", e.message);
   }
 
-  // Stocks to Watch: AI-generated editorial picks (10-12 names with substantive reasons).
-  // Based on top news and upcoming earnings. Our editorial voice.
-  // Corporate news only — what companies did/said/announced. Never analyst filler.
-  if (summarizer && typeof summarizer.summarizeStory === "function" && topNews.length >= 3) {
-    try {
-      const newsContext = topNews.slice(0, 8).map((s, i) => `${i + 1}. ${s.headline}: ${(s.summary || "").slice(0, 200)}`).join("\n");
-      const earningsContext = ((sections.calendar || {}).earnings || []).slice(0, 8).map((e) => `- ${e.ticker} (${e.company})`).join("\n");
-      // SEC 8-K filings: authoritative corporate actions, exactly the
-      // "what companies did/said/announced" definition for Stocks to Watch.
-      const eightKContext = (eightKs || []).slice(0, 10).map((f) => {
-        const items = (f.items || []).map((it) => `${it.item} ${it.label}`).join("; ");
-        return `- ${f.ticker} (${f.company}), filed ${f.filedDate}: ${items}`;
-      }).join("\n");
+  // Build compact live market context string for the AI summarizer
+  const marketContext = (beforeBell || [])
+    .map((b) => {
+      if (b.text) return `${b.label}:${b.text}`;
+      const pct = b.pct == null ? "" : ` (${b.pct >= 0 ? "+" : ""}${b.pct.toFixed(2)}%)`;
+      return `${b.label}: ${b.level || ""}${pct}`;
+    })
+    .join(" | ");
 
-      const stwPrompt =
-        `You are writing the "Stocks to Watch" section for a morning market newsletter. ` +
-        `Write in the style of LSEG Morning News Call: factual, specific, no speculation.\n\n` +
-        `Format for each: "• TICKER Company Name: [what the company said/did/announced, with specific numbers and attribution]"\n\n` +
-        `Examples of GOOD entries:\n` +
-        `• AEVEX Corp: Drone maker AEVEX said on Thursday that it had raised $320 million in its U.S. initial public offering after pricing shares at $20 each. The company sold 16 million shares within its indicated price range of $18 to $21 apiece.\n` +
-        `• Ford Motor Co: The company is recalling about 1.4 million F-150 pickup trucks in the U.S. following a National Highway Traffic Safety Administration investigation into reports of unexpected downshifts, the regulator said.\n` +
-        `• Uber Technologies Inc: Prosus has agreed to sell a 4.5% stake in Delivery Hero to Uber for about 270 million euros ($318 million), making the ride-hailing group the fourth-largest shareholder, the companies said.\n\n` +
-        `Rules:\n` +
-        `- Lead with what the company DID, SAID, or ANNOUNCED. Specific facts only.\n` +
-        `- Include specific numbers: dollar amounts, share counts, percentages, dates.\n` +
-        `- Attribute: "the company said," "according to," "the regulator said."\n` +
-        `- NEVER write: "missed/beat expectations," "watch for," "investors will focus on," "sets the tone," "whether X signals Y."\n` +
-        `- NEVER mention analyst revisions, price targets, or Seeking Alpha.\n` +
-        `- If a company only has "reports earnings tomorrow" with no specific news, SKIP IT.\n` +
-        `- Pick as many as have real news. Fewer strong picks beat padded filler.\n\n` +
-        `Base picks on the news and earnings below. Favor S&P 500 companies. ` +
-        `No investment advice. Format as a JSON array: [{"ticker": "AVGO", "company": "Broadcom", "reason": "..."}, ...]\n\n` +
-        `Top news:\n${newsContext}\n\nEarnings:\n${earningsContext || "(none)"}\n\nSEC 8-K filings (authoritative corporate actions):\n${eightKContext || "(none)"}`;
+  // 2. Fetch Top News clusters (oversample 10 so thin stories can be dropped)
+  const candidateNews =
+    news && typeof news.topNews === "function"
+      ? await news.topNews(null, null, 10)
+      : await market.topNews(runDate);
 
-      const rawStw = await summarizer.summarizeStory("Stocks to watch", [{ source: "context", text: stwPrompt }]);
-      // Try to parse as JSON, fallback to empty
+  // 3. Synthesize 80-90 word LSEG summaries from pooled sources + fullText + marketContext
+  let aiFailures = 0;
+  let aiAttempts = 0;
+  const topNews = [];
+
+  if (summarizer && typeof summarizer.summarizeStory === "function") {
+    for (const s of candidateNews) {
+      if (topNews.length >= 6) break;
       try {
-        const jsonMatch = rawStw.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          const picks = JSON.parse(jsonMatch[0]);
-          if (Array.isArray(picks) && picks.length > 0) {
-            sections.stocks_to_watch = picks.slice(0, 12).map((p) => ({
-              ticker: p.ticker || "",
-              company: p.company || "",
-              reason: p.reason || "",
-            })).filter((p) => p.ticker && p.reason);
-          }
+        const sources = [];
+        if (s.fullText && s.fullText.length > 100) {
+          sources.push({
+            source: `${s.source || "Primary"} (Full Text)`,
+            text: s.fullText.slice(0, 2800),
+          });
         }
-      } catch (parseErr) {
-        console.error("[market] stocks-to-watch parse failed:", parseErr.message);
+        if (Array.isArray(s.pooledSources) && s.pooledSources.length > 0) {
+          for (const ps of s.pooledSources.slice(0, 4)) {
+            const combined = [
+              ps.headline,
+              ps.summary,
+              ps.fullText ? ps.fullText.slice(0, 1200) : "",
+            ]
+              .filter(Boolean)
+              .join(" — ");
+            if (combined.length > 30) {
+              sources.push({ source: ps.source || "Wire", text: combined });
+            }
+          }
+        } else if (s.summary) {
+          sources.push({ source: s.source || "Summary", text: s.summary.slice(0, 1500) });
+        }
+
+        if (sources.length === 0) continue;
+        aiAttempts++;
+        const inputLen = sources.reduce((n, src) => n + (src.text || "").length, 0);
+        const raw = await summarizer.summarizeStory(s.headline, sources, marketContext);
+        const capped = capSummary(raw, 680, 5);
+
+        if (capped.length < 180) {
+          console.warn(
+            `[market] thin summary for "${(s.headline || "").slice(0, 80)}": ` +
+              `input ${inputLen} chars -> summary${capped.length} chars`
+          );
+          // Skip thin stories if we still have other candidates in the pool
+          if (candidateNews.length > 5 && topNews.length < 5) continue;
+        }
+        s.summary = capped;
+        delete s.pooledSources; // keep D1 payload clean
+        topNews.push(s);
+      } catch (e) {
+        aiFailures++;
+        console.error("[market] story summary failed:", e.message);
+        const fallback = extractiveSummary(s, 100);
+        if (fallback && fallback.length >= 150) {
+          s.summary = capSummary(fallback, 680, 5);
+          delete s.pooledSources;
+          topNews.push(s);
+        }
       }
-    } catch (e) {
-      console.error("[market] stocks-to-watch generation failed:", e.message);
+    }
+  } else {
+    topNews.push(...candidateNews.slice(0, 6));
+  }
+
+  // Fallback if strict length filter dropped too many on a very slow news day
+  if (topNews.length < 3 && candidateNews.length > 0) {
+    for (const s of candidateNews) {
+      if (topNews.length >= 5) break;
+      if (!topNews.includes(s) && s.summary) {
+        s.summary = capSummary(s.summary, 680, 5);
+        delete s.pooledSources;
+        topNews.push(s);
+      }
     }
   }
 
-  // Thesis-led open: substantive take on the day (Yardeni-style).
-  // Names the dominant theme BEFORE details. Neutral, sourced, no predictions without evidence.
-  if (summarizer && typeof summarizer.summarize === "function" && topNews.length) {
+  if (aiAttempts > 0 && aiFailures === aiAttempts) {
+    console.error(
+      `[market] ALL ${aiAttempts} AI summaries failed for${runDate} — check Workers AI binding/model.`
+    );
+  }
+
+  const premarketMovers =
+    typeof market.premarketMovers === "function" ? await market.premarketMovers(topNews) : [];
+
+  const picture =
+    typeof market.pictureOfTheDay === "function"
+      ? await market.pictureOfTheDay(topNews, summarizer)
+      : null;
+
+  const sections = {
+    top_news: topNews,
+    before_bell: beforeBell,
+    futures_strip: futuresStrip,
+    overnight,
+    treasury_yields: treasuryYields,
+    calendar,
+    picture,
+    premarket_movers: premarketMovers,
+  };
+
+  if (eightKs.length > 0) {
+    sections.eight_ks = eightKs;
+  }
+
+  // 4. Stocks to Watch: Use summarizer.complete() for reliable JSON output + deterministic fallback
+  if (summarizer && (topNews.length > 0 || eightKs.length > 0 || (calendar.earnings || []).length > 0)) {
     try {
-      const headlines = topNews.slice(0, 5).map((s, i) => `${i + 1}. ${s.headline}`).join("\n");
-      // before_bell rows are structured {label, level, change, pct, note};
-      // legacy mock rows are {label, text}. Handle both.
-      const bb = (sections.before_bell || []).map((b) => {
-        if (b.text) return `${b.label}: ${b.text}`;
-        const pct = b.pct == null ? "" : ` (${b.pct >= 0 ? "+" : ""}${b.pct.toFixed(2)}%)`;
-        return `${b.label}: ${b.level}${pct}${b.note ? ` ${b.note}` : ""}`;
-      }).join("; ");
-      // Overnight (Asia/Europe) feeds the thesis too — it names what's
-      // already happened while the US slept.
-      const ovLine = (sections.overnight && sections.overnight.line) || "";
-      const thesisPrompt =
-        `Give a neutral, substantive take on today's market setup for a morning investor briefing. ` +
-        `Name the 1-2 dominant themes driving markets this morning. State what matters and why, not predictions. ` +
-        `Get the key points across — as long as they need, as short as they can be. Facts only from the headlines below. No investment advice.\n\n` +
-        `Overnight market data: ${bb}${ovLine ? `\nOvernight (Asia/Europe): ${ovLine}` : ""}\n\nTop stories:\n${headlines}`;
-      // Use the story summarizer if available, else skip
-      if (typeof summarizer.summarizeStory === "function") {
-        const rawThesis = await summarizer.summarizeStory("Today's market setup", thesisPrompt);
-        const thesis = truncateWords(rawThesis, 100);
-        if (thesis && thesis.length > 20) sections.day_take = thesis;
+      const newsContext = topNews
+        .slice(0, 6)
+        .map((s, i) => `${i + 1}. ${s.headline}:${(s.summary || "").slice(0, 350)}`)
+        .join("\n");
+      const earningsContext = ((calendar || {}).earnings || [])
+        .slice(0, 10)
+        .map((e) => `- ${e.ticker} (${e.company}): ${e.time || ""} ${e.earnings_detail || ""}`)
+        .join("\n");
+      const eightKContext = (eightKs || [])
+        .slice(0, 10)
+        .map((f) => {
+          const items = (f.items || []).map((it) => `${it.item}${it.label}`).join("; ");
+          return `- ${f.ticker} (${f.company}), filed ${f.filedDate}:${items}`;
+        })
+        .join("\n");
+
+      const stwSystemPrompt =
+        "You write the 'Stocks to Watch' section for an institutional morning market briefing in the style of LSEG Morning News Call. " +
+        "Return ONLY a valid JSON array of objects with keys: [{\"ticker\": \"...\", \"company\": \"...\", \"reason\": \"...\"}]. " +
+        "Do not include markdown code fences or introductory prose.";
+
+      const stwUserPrompt =
+        `Select 4 to 8 US public companies (favoring S&P 500 constituents) with concrete corporate news, SEC 8-K filings, or scheduled earnings today.\n\n` +
+        `Rules for each "reason" (25-45 words):\n` +
+        `- State specifically what the company DID, SAID, FILED, or is scheduled to REPORT today.\n` +
+        `- Include exact figures: dollar amounts, EPS estimates, 3-month stock performance, or SEC 8-K item numbers.\n` +
+        `- Attribute clearly ('the company said', 'according to a Form 8-K filing', 'is scheduled to report before the open').\n` +
+        `- Never include analyst ratings, price targets, or vague speculation.\n\n` +
+        `Top News:\n${newsContext || "(none)"}\n\n` +
+        `Today's Earnings:\n${earningsContext || "(none)"}\n\n` +
+        `SEC Form 8-K Corporate Filings:\n${eightKContext || "(none)"}\n\n` +
+        `Output strictly a JSON array: [{"ticker": "TRV", "company": "Travelers Companies Inc", "reason": "..."}]`;
+
+      const rawStw =
+        typeof summarizer.complete === "function"
+          ? await summarizer.complete(stwSystemPrompt, stwUserPrompt, { maxTokens: 900, temperature: 0.1 })
+          : await summarizer.summarizeStory("Stocks to watch", [{ source: "context", text: stwUserPrompt }]);
+
+      const jsonMatch = rawStw.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const picks = JSON.parse(jsonMatch[0]);
+        if (Array.isArray(picks) && picks.length > 0) {
+          sections.stocks_to_watch = picks
+            .slice(0, 10)
+            .map((p) => ({
+              ticker: String(p.ticker || "").toUpperCase().trim(),
+              company: String(p.company || "").trim(),
+              reason: String(p.reason || "").trim(),
+            }))
+            .filter((p) => p.ticker && p.company && p.reason.length > 20);
+        }
+      }
+    } catch (e) {
+      console.error("[market] stocks-to-watch AI generation failed:", e.message);
+    }
+
+    // Deterministic fallback: if AI JSON parse failed or returned 0 items, build from 8-Ks & Earnings
+    if (!sections.stocks_to_watch || sections.stocks_to_watch.length === 0) {
+      const fallbackPicks = [];
+      for (const e of (calendar.earnings || []).slice(0, 5)) {
+        if (e.ticker && e.company) {
+          const detail = e.earnings_detail ? ` (${e.earnings_detail})` : "";
+          fallbackPicks.push({
+            ticker: e.ticker,
+            company: e.company,
+            reason: `${e.company} is scheduled to report quarterly results (${e.time || "today"})${detail}, according to exchange calendar filings.`,
+          });
+        }
+      }
+      for (const f of (eightKs || []).slice(0, 5)) {
+        if (f.ticker && f.company && !fallbackPicks.some((p) => p.ticker === f.ticker)) {
+          const items = (f.items || []).map((it) => `${it.item} (${it.label})`).join(", ");
+          fallbackPicks.push({
+            ticker: f.ticker,
+            company: f.company,
+            reason: `${f.company} filed a Form 8-K with the SEC on ${f.filedDate} disclosing${items || "material corporate events"}.`,
+          });
+        }
+      }
+      if (fallbackPicks.length > 0) {
+        sections.stocks_to_watch = fallbackPicks.slice(0, 8);
+      }
+    }
+  }
+
+  // 5. Thesis-led open (day_take): LSEG/Yardeni-style morning macro setup
+  if (summarizer && topNews.length > 0) {
+    try {
+      const storyDigest = topNews
+        .slice(0, 5)
+        .map((s, i) => `${i + 1}. ${s.headline}:${(s.summary || "").slice(0, 220)}`)
+        .join("\n");
+      const ovLine = (overnight && overnight.line) || "";
+      const thesisSystemPrompt =
+        "You write the opening 'Morning Take' macro synthesis for Morning Brief, an institutional investor newsletter. " +
+        "Write 2 to 3 crisp sentences (60 to 100 words) naming the 1-2 dominant themes driving global markets this morning, " +
+        "connecting overnight equity/yield/commodity moves directly to today's top catalysts. " +
+        "Cite exact numbers from the data provided. No greetings, no bullet points, no investment advice.";
+      const thesisUserPrompt =
+        `Pre-Market Quotes: ${marketContext}\n` +
+        (ovLine ? `Overnight Global Markets: ${ovLine}\n` : "") +
+        `\nTop Stories:\n${storyDigest}`;
+
+      const rawThesis =
+        typeof summarizer.complete === "function"
+          ? await summarizer.complete(thesisSystemPrompt, thesisUserPrompt, { maxTokens: 240, temperature: 0.15 })
+          : await summarizer.summarizeStory("Today's market setup", thesisUserPrompt);
+
+      const thesis = truncateWords(rawThesis.replace(/^(morning take|the big picture|summary)\s*:\s*/i, "").trim(), 120);
+      if (thesis && thesis.length > 40) {
+        sections.day_take = thesis;
       }
     } catch (e) {
       console.error("[market] thesis generation failed:", e.message);
     }
   }
+
   for (const [section, payload] of Object.entries(sections)) {
     await db
       .prepare(
@@ -381,19 +490,10 @@ export async function runMarket({ db, market, news, runDate, nowSec, summarizer 
       .run();
   }
 
-  // Data-quality summary: loud log of what we got vs what's missing.
-  // If a section is empty, the reason is in the provider logs above.
   const sectionCounts = Object.fromEntries(
-    Object.entries(sections).map(([k, v]) => [k, Array.isArray(v) ? v.length : (v ? 1 : 0)])
+    Object.entries(sections).map(([k, v]) => [k, Array.isArray(v) ? v.length : v ? 1 : 0])
   );
-  console.log(`[market] sections for ${runDate}: ${JSON.stringify(sectionCounts)}`);
-  const emptySections = Object.entries(sectionCounts)
-    .filter(([, n]) => n === 0)
-    .map(([k]) => k);
-  if (emptySections.length > 0) {
-    console.warn(`[market] EMPTY sections for ${runDate}: ${emptySections.join(", ")} — check provider logs above for API failures`);
-  }
-
+  console.log(`[market] sections for ${runDate}:${JSON.stringify(sectionCounts)}`);
   return sections;
 }
 
